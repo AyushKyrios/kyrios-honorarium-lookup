@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kyrios Honorarium Lookup</title>
+  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f0f2f5; color: #1a1a1a; min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: #0f2d4a; color: #fff; padding: 0 28px; height: 56px;
+      display: flex; align-items: center; justify-content: space-between;
+      position: sticky; top: 0; z-index: 100;
+    }
+    .header-left { display: flex; align-items: center; gap: 12px; }
+    .header-logo {
+      width: 28px; height: 28px; background: #1e6fb0; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; color: #fff;
+    }
+    .header-title { font-size: 15px; font-weight: 500; }
+    .header-sub   { font-size: 11px; opacity: 0.5; margin-top: 1px; }
+    .user-row { display: flex; align-items: center; gap: 10px; }
+    .user-name { font-size: 13px; opacity: 0.65; }
+    .btn-signout {
+      background: transparent; color: rgba(255,255,255,0.65);
+      border: 1px solid rgba(255,255,255,0.25); padding: 5px 12px;
+      border-radius: 5px; cursor: pointer; font-size: 12px;
+    }
+    .btn-signout:hover { background: rgba(255,255,255,0.1); }
+
+    /* ── Layout ── */
+    .page { max-width: 1200px; margin: 0 auto; padding: 28px 20px; }
+
+    /* ── Login ── */
+    .login-wrap {
+      display: flex; align-items: center; justify-content: center;
+      min-height: calc(100vh - 56px);
+    }
+    .login-card {
+      background: #fff; border-radius: 14px; padding: 52px 48px;
+      text-align: center; max-width: 420px; width: 100%;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    .login-icon {
+      width: 56px; height: 56px; background: #e8f2fb; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 20px; font-size: 26px;
+    }
+    .login-card h2 { font-size: 20px; font-weight: 600; color: #0f2d4a; margin-bottom: 8px; }
+    .login-card p  { font-size: 14px; color: #666; margin-bottom: 32px; line-height: 1.6; }
+    .btn-login {
+      background: #0f2d4a; color: #fff; border: none; padding: 13px 32px;
+      border-radius: 8px; cursor: pointer; font-size: 15px; font-weight: 500;
+      width: 100%; transition: background 0.15s;
+    }
+    .btn-login:hover { background: #1a4870; }
+
+    /* ── Search ── */
+    .search-card {
+      background: #fff; border-radius: 12px; padding: 20px 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06); margin-bottom: 16px;
+    }
+    .search-label {
+      font-size: 11px; color: #888; text-transform: uppercase;
+      letter-spacing: 0.6px; font-weight: 500; margin-bottom: 10px;
+    }
+    .search-input {
+      width: 100%; padding: 11px 16px; font-size: 15px;
+      border: 1.5px solid #dde3ea; border-radius: 8px; outline: none;
+      background: #f8fafc; transition: border-color 0.15s;
+    }
+    .search-input:focus { border-color: #1e6fb0; background: #fff; }
+    .search-input::placeholder { color: #aab; }
+    .data-stats { font-size: 12px; color: #aaa; margin-top: 10px; }
+    .data-stats strong { color: #1e6fb0; }
+
+    /* ── Results grid ── */
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      align-items: start;
+    }
+    @media (max-width: 900px)  { .results-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 600px)  { .results-grid { grid-template-columns: 1fr; } }
+
+    /* ── Sheet column ── */
+    .sheet-col {
+      background: #fff; border-radius: 12px; padding: 18px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+    .sheet-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding-bottom: 12px; margin-bottom: 12px;
+      border-bottom: 2px solid #e8f2fb;
+    }
+    .sheet-name {
+      font-size: 13px; font-weight: 600; color: #0f2d4a;
+      display: flex; align-items: center; gap: 7px;
+    }
+    .sheet-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .sheet-dot.aamir { background: #1e6fb0; }
+    .sheet-dot.ajay  { background: #2e9e6e; }
+    .sheet-dot.em    { background: #8b5cf6; }
+    .sheet-count { font-size: 12px; color: #aaa; }
+
+    /* ── Colour legend ── */
+    .legend {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      margin-bottom: 14px; padding: 10px 12px;
+      background: #f8fafc; border-radius: 7px;
+      border: 1px solid #eaeff5;
+    }
+    .legend-item {
+      display: flex; align-items: center; gap: 5px;
+      font-size: 11px; color: #555;
+    }
+    .legend-swatch {
+      width: 12px; height: 12px; border-radius: 3px;
+      border: 1px solid rgba(0,0,0,0.12); flex-shrink: 0;
+    }
+
+    /* ── Result card ── */
+    .result-card {
+      border: 1px solid #eaeff5; border-radius: 9px;
+      padding: 12px 14px 12px 0;
+      margin-bottom: 10px;
+      display: flex; gap: 0;
+      transition: box-shadow 0.15s;
+      overflow: hidden;
+    }
+    .result-card:last-child { margin-bottom: 0; }
+    .result-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.07); }
+
+    .rc-stripe {
+      width: 4px; flex-shrink: 0; border-radius: 9px 0 0 9px;
+      margin-right: 12px; background: #e2e8f0;
+    }
+    .rc-body { flex: 1; min-width: 0; }
+
+    .rc-name  { font-size: 14px; font-weight: 600; color: #0f2d4a; margin-bottom: 2px; }
+    .rc-email { font-size: 12px; color: #1e6fb0; margin-bottom: 10px; word-break: break-all; }
+
+    .rc-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .rc-field-label {
+      font-size: 10px; color: #aaa; text-transform: uppercase;
+      letter-spacing: 0.5px; font-weight: 500; margin-bottom: 1px;
+    }
+    .rc-field-value { font-size: 12px; color: #333; font-weight: 500; }
+    .rc-field-value.amount { color: #1a7a4a; }
+
+    .rc-comment {
+      margin-top: 8px; font-size: 11px; color: #666;
+      background: #f7f9fc; padding: 6px 9px; border-radius: 5px;
+      border-left: 3px solid #c8d8ea; line-height: 1.5;
+    }
+
+    /* ── States ── */
+    .state-msg { text-align: center; padding: 28px 16px; font-size: 14px; color: #bbb; }
+    .spinner {
+      display: inline-block; width: 18px; height: 18px;
+      border: 2px solid #dde3ea; border-top-color: #1e6fb0;
+      border-radius: 50%; animation: spin 0.7s linear infinite;
+      vertical-align: middle; margin-right: 8px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-full { text-align: center; padding: 48px; font-size: 14px; color: #888; }
+    .error-msg {
+      background: #fff5f5; border: 1px solid #fcc; border-radius: 8px;
+      padding: 12px 16px; font-size: 13px; color: #c33; margin-bottom: 12px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ╔══════════════════════════════════════════════╗
+     ║  EDIT THESE TWO VALUES BEFORE DEPLOYING     ║
+     ║  See SETUP.md for instructions              ║
+     ╚══════════════════════════════════════════════╝ -->
+<script>
+window.APP_CONFIG = {
+  clientId: "eb343397-6cd8-4c74-90a8-6510fa0d1cdc",
+  tenantId: "41556e9d-6b02-4dc9-a58b-dbcb44befa81",
+
+  sheets: [
+    {
+      label:    "Team Aamir",
+      dotClass: "aamir",
+      driveId:  "b!8SpAeFIIEUuEuyguwRIZ_nA8wWubwvZKnB9xyFGd-jOTpqk5hxDcRZ4f9x7xM9dZ",
+      itemId:   "01W3GTJBOMLWIJE3N3KFFKMXT6D4YAZIVT",
+      legend: [
+        { color: "#92D050", label: "Marked complete on Kyrios (DT/EM)" },
+        { color: "#00B050", label: "Amount manually entered on Kyrios" },
+        { color: "#FF0000", label: "Not processed / project code missing" },
+        { color: null,      label: "Yet to process" }
+      ]
+    },
+    {
+      label:    "Team Ajay",
+      dotClass: "ajay",
+      driveId:  "b!8SpAeFIIEUuEuyguwRIZ_nA8wWubwvZKnB9xyFGd-jOTpqk5hxDcRZ4f9x7xM9dZ",
+      itemId:   "01W3GTJBPNYMOLKXFYMFF3HWI46QAB6HIG",
+      legend: [
+        { color: "#92D050", label: "Marked complete on Kyrios (DT/EM)" },
+        { color: "#00B050", label: "Amount manually entered on Kyrios" },
+        { color: "#FF0000", label: "Not processed / project code missing" },
+        { color: null,      label: "Yet to process" }
+      ]
+    },
+    {
+      label:    "EM Gurgaon",
+      dotClass: "em",
+      driveId:  "b!8SpAeFIIEUuEuyguwRIZ_nA8wWubwvZKnB9xyFGd-jOTpqk5hxDcRZ4f9x7xM9dZ",
+      itemId:   "01W3GTJBNYAW2N74TASRAJS3FQVLHTF77N",
+      legend: [
+        { color: "#00B050", label: "Processed" },
+        { color: "#4472C4", label: "No project code" },
+        { color: "#FF0000", label: "Not in Kyrios / fake / fraud / unemployed" },
+        { color: null,      label: "Pending" }
+      ]
+    }
+  ]
+};
+</script>
+
+<header class="header">
+  <div class="header-left">
+    <div class="header-logo">K</div>
+    <div>
+      <div class="header-title">Kyrios Honorarium Lookup</div>
+      <div class="header-sub">DT + EM sheets</div>
+    </div>
+  </div>
+  <div id="header-right"></div>
+</header>
+
+<div id="root"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// MSAL AUTH
+// ═══════════════════════════════════════════════════════════════
+const CFG = window.APP_CONFIG;
+
+const msalApp = new msal.PublicClientApplication({
+  auth: {
+    clientId:    CFG.clientId,
+    authority:   `https://login.microsoftonline.com/${CFG.tenantId}`,
+    redirectUri: window.location.origin + window.location.pathname.replace(/\/$/, '')
+  },
+  cache: { cacheLocation: "sessionStorage", storeAuthStateInCookie: false }
+});
+
+const SCOPES = ["Files.Read", "Sites.Read.All"];
+
+async function getToken() {
+  const accounts = msalApp.getAllAccounts();
+  if (!accounts.length) throw new Error("Not signed in");
+  try {
+    const r = await msalApp.acquireTokenSilent({ scopes: SCOPES, account: accounts[0] });
+    return r.accessToken;
+  } catch {
+    const r = await msalApp.acquireTokenPopup({ scopes: SCOPES });
+    return r.accessToken;
+  }
+}
+
+async function login() {
+  try {
+    await msalApp.loginPopup({ scopes: SCOPES });
+    await boot();
+  } catch (e) {
+    showError("Sign-in failed: " + e.message);
+  }
+}
+function logout()       { msalApp.logoutPopup(); }
+function currentUser()  { const a = msalApp.getAllAccounts(); return a.length ? a[0] : null; }
+
+// ═══════════════════════════════════════════════════════════════
+// XLSX DOWNLOAD + PARSE
+// ═══════════════════════════════════════════════════════════════
+
+async function fetchAndParseSheet(driveId, itemId) {
+  const token = await getToken();
+
+  // Download raw xlsx binary
+  const res = await fetch(
+    `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/content`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) throw new Error(`Download failed (${res.status})`);
+
+  const buf = await res.arrayBuffer();
+  const zip = await JSZip.loadAsync(buf);
+
+  // 1. Shared strings
+  const ssFile = zip.file('xl/sharedStrings.xml');
+  const sharedStrings = ssFile ? parseSharedStrings(await ssFile.async('text')) : [];
+
+  // 2. Fill colours per style index
+  const stFile = zip.file('xl/styles.xml');
+  const styleColors = stFile ? parseStyleColors(await stFile.async('text')) : [];
+
+  // 3. First sheet path
+  const relsFile = zip.file('xl/_rels/workbook.xml.rels');
+  const sheetPath = relsFile
+    ? resolveSheetPath(await relsFile.async('text'))
+    : 'xl/worksheets/sheet1.xml';
+
+  // 4. Parse sheet rows
+  const shFile = zip.file(sheetPath);
+  if (!shFile) throw new Error(`Sheet file not found: ${sheetPath}`);
+  return parseSheetXml(await shFile.async('text'), sharedStrings, styleColors);
+}
+
+// ── XML helpers ────────────────────────────────────────────────
+
+function parseSharedStrings(xml) {
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+  return Array.from(doc.querySelectorAll('si')).map(si =>
+    Array.from(si.querySelectorAll('t'))
+      .map(t => t.textContent)
+      .join('')
+  );
+}
+
+function parseStyleColors(xml) {
+  const doc = new DOMParser().parseFromString(xml, 'text/xml');
+
+  // Indexed colour palette (Excel legacy)
+  const INDEXED = [
+    '#000000','#FFFFFF','#FF0000','#00FF00','#0000FF','#FFFF00','#FF00FF','#00FFFF',
+    '#000000','#FFFFFF','#FF0000','#00FF00','#0000FF','#FFFF00','#FF00FF','#00FFFF',
+    '#800000','#008000','#000080','#808000','#800080','#008080','#C0C0C0','#808080',
+    '#9999FF','#993366','#FFFFCC','#CCFFFF','#660066','#FF8080','#0066CC','#CCCCFF',
+    '#000080','#FF00FF','#FFFF00','#00FFFF','#800080','#800000','#008080','#0000FF',
+    '#00CCFF','#CCFFFF','#CCFFCC','#FFFF99','#99CCFF','#FF99CC','#CC99FF','#FFCC99',
+    '#3366FF','#33CCCC','#99CC00','#FFCC00','#FF9900','#FF6600','#666699','#969696',
+    '#003366','#339966','#003300','#333300','#993300','#993366','#333399','#333333'
+  ];
+
+  // Parse fills
+  const fills = Array.from(doc.querySelectorAll('fills > fill')).map(f => {
+    const pf = f.querySelector('patternFill');
+    if (!pf) return null;
+    const type = pf.getAttribute('patternType') || '';
+    if (type === 'none') return null;
+
+    const fg = pf.querySelector('fgColor');
+    if (!fg) return null;
+
+    const rgb     = fg.getAttribute('rgb');
+    const indexed = fg.getAttribute('indexed');
+
+    if (rgb && rgb.length === 8) {
+      return '#' + rgb.slice(2).toUpperCase(); // AARRGGBB → #RRGGBB
+    }
+    if (indexed !== null) {
+      const idx = parseInt(indexed);
+      return INDEXED[idx] || null;
+    }
+    return null;
+  });
+
+  // Map cell xf index → colour
+  return Array.from(doc.querySelectorAll('cellXfs > xf')).map(xf => {
+    const fid = parseInt(xf.getAttribute('fillId') || '0');
+    return fills[fid] || null;
+  });
+}
+
+function resolveSheetPath(relsXml) {
+  const doc = new DOMParser().parseFromString(relsXml, 'text/xml');
+  const rel = Array.from(doc.querySelectorAll('Relationship')).find(r =>
+    (r.getAttribute('Type') || '').includes('/worksheet')
+  );
+  if (!rel) return 'xl/worksheets/sheet1.xml';
+  const t = rel.getAttribute('Target') || '';
+  if (t.startsWith('/')) return t.slice(1);                   // /xl/worksheets/sheet1.xml
+  if (t.startsWith('xl/')) return t;                          // xl/worksheets/sheet1.xml
+  return 'xl/' + t;                                           // worksheets/sheet1.xml
+}
+
+function colToIndex(col) {
+  let n = 0;
+  for (const c of col) n = n * 26 + c.charCodeAt(0) - 64;
+  return n - 1;
+}
+
+function parseSheetXml(xml, sharedStrings, styleColors) {
+  const doc  = new DOMParser().parseFromString(xml, 'text/xml');
+  const rows = [];
+
+  for (const rowEl of doc.querySelectorAll('row')) {
+    const cells = Array.from(rowEl.querySelectorAll('c'));
+    if (!cells.length) { rows.push({ values: [], rowColor: null }); continue; }
+
+    // Determine sparse column count
+    const lastRef  = cells[cells.length - 1].getAttribute('r') || 'A1';
+    const lastCol  = lastRef.match(/[A-Z]+/)?.[0] || 'A';
+    const colCount = colToIndex(lastCol) + 1;
+
+    const values = new Array(colCount).fill('');
+    let rowColor  = null;
+    let firstCell = true;
+
+    for (const cell of cells) {
+      const ref   = cell.getAttribute('r') || 'A1';
+      const col   = ref.match(/[A-Z]+/)?.[0] || 'A';
+      const cidx  = colToIndex(col);
+      const type  = cell.getAttribute('t') || '';
+      const sIdx  = parseInt(cell.getAttribute('s') || '0');
+      const vEl   = cell.querySelector('v');
+
+      // Value
+      let val = '';
+      if (vEl) {
+        val = type === 's'
+          ? (sharedStrings[parseInt(vEl.textContent)] ?? '')
+          : vEl.textContent;
+      }
+      if (cidx < colCount) values[cidx] = String(val);
+
+      // Row colour: use first cell that has a fill colour
+      if (firstCell && styleColors[sIdx]) {
+        rowColor = styleColors[sIdx];
+        firstCell = false;
+      } else if (firstCell) {
+        firstCell = false; // still advance so we don't skip all cells
+      }
+    }
+
+    rows.push({ values, rowColor });
+  }
+  return rows;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// DATA PARSING
+// ═══════════════════════════════════════════════════════════════
+
+const HEADER_SIGNALS = ["first name","email","amount in usd","sr no","designation"];
+
+const COL_MAP = {
+  "sr no":                     "srNo",
+  "client":                    "client",
+  "pname":                     "project",
+  "project name":              "project",
+  "p name":                    "project",
+  "code":                      "code",
+  "date":                      "date",
+  "first name":                "firstName",
+  "last name":                 "lastName",
+  "email":                     "email",
+  "designation":               "designation",
+  "amount in usd":             "amountUSD",
+  "amount in native currency": "amountNative",
+  "country":                   "country",
+  "recruiter name":            "recruiter",
+  "study type":                "studyType",
+  "comment":                   "comment"
+};
+
+function buildRecords(rawRows) {
+  if (!rawRows.length) return [];
+
+  // Find header row
+  let hIdx = 0;
+  for (let i = 0; i < Math.min(12, rawRows.length); i++) {
+    const cells = rawRows[i].values.map(c => String(c).trim().toLowerCase());
+    if (HEADER_SIGNALS.filter(s => cells.includes(s)).length >= 2) { hIdx = i; break; }
+  }
+
+  const hCells = rawRows[hIdx].values.map(c => String(c).trim().toLowerCase());
+  const colIdx = {};
+  hCells.forEach((h, i) => { if (COL_MAP[h]) colIdx[COL_MAP[h]] = i; });
+
+  const records = [];
+  for (let i = hIdx + 1; i < rawRows.length; i++) {
+    const { values, rowColor } = rawRows[i];
+    if (!values.length || values.every(v => !v)) continue;
+
+    const rec = { rowColor };
+    Object.entries(colIdx).forEach(([field, ci]) => {
+      rec[field] = ci < values.length ? String(values[ci] || '').trim() : '';
+    });
+    if (!rec.firstName && !rec.email) continue;
+    records.push(rec);
+  }
+  return records;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STATE + SEARCH
+// ═══════════════════════════════════════════════════════════════
+
+let datasets = [];
+let loaded   = false;
+
+async function loadAllSheets() {
+  datasets = CFG.sheets.map(s => ({ ...s, records: [], error: null, loading: true }));
+  renderSearchPage();
+
+  const results = await Promise.allSettled(
+    CFG.sheets.map(s => fetchAndParseSheet(s.driveId, s.itemId))
+  );
+
+  results.forEach((r, i) => {
+    datasets[i].loading = false;
+    if (r.status === 'fulfilled') {
+      datasets[i].records = buildRecords(r.value);
+    } else {
+      datasets[i].error = r.reason?.message || 'Unknown error';
+    }
+  });
+
+  loaded = true;
+  const total = datasets.reduce((s, d) => s + d.records.length, 0);
+  const statsEl = document.getElementById('data-stats');
+  if (statsEl) statsEl.innerHTML = `<strong>${total.toLocaleString()}</strong> respondents loaded across ${datasets.length} sheets`;
+  renderResults(document.getElementById('search-input')?.value || '');
+}
+
+function match(rec, q) {
+  const name  = `${rec.firstName || ''} ${rec.lastName || ''}`.toLowerCase();
+  const email = (rec.email || '').toLowerCase();
+  return name.includes(q) || email.includes(q);
+}
+
+function search(query) {
+  const q = query.toLowerCase().trim();
+  return datasets.map(d => ({ ...d, results: q ? d.records.filter(r => match(r, q)) : [] }));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════════
+
+function esc(s) {
+  return String(s || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function renderHeader() {
+  const u = currentUser();
+  document.getElementById('header-right').innerHTML = u
+    ? `<div class="user-row">
+         <span class="user-name">${esc(u.username)}</span>
+         <button class="btn-signout" onclick="logout()">Sign out</button>
+       </div>`
+    : '';
+}
+
+function showError(msg) {
+  document.getElementById('root').innerHTML =
+    `<div class="page"><div class="error-msg">${esc(msg)}</div></div>`;
+}
+
+function renderLogin() {
+  renderHeader();
+  document.getElementById('root').innerHTML = `
+    <div class="login-wrap">
+      <div class="login-card">
+        <div class="login-icon">🔎</div>
+        <h2>Honorarium Lookup</h2>
+        <p>Search respondent honorariums across Team Aamir, Team Ajay and EM Gurgaon sheets. Sign in with your GRG Microsoft account to continue.</p>
+        <button class="btn-login" onclick="login()">⊞&nbsp;&nbsp;Sign in with Microsoft</button>
+      </div>
+    </div>`;
+}
+
+function renderSearchPage() {
+  renderHeader();
+  document.getElementById('root').innerHTML = `
+    <div class="page">
+      <div class="search-card">
+        <div class="search-label">Search respondents</div>
+        <input
+          type="text" class="search-input" id="search-input"
+          placeholder="Type a name or email address…"
+          oninput="renderResults(this.value)"
+          autocomplete="off" autofocus
+        />
+        <div class="data-stats" id="data-stats">
+          <span class="spinner"></span> Loading data from SharePoint…
+        </div>
+      </div>
+      <div id="results-area">
+        <div class="loading-full"><span class="spinner"></span> Downloading and reading sheets…</div>
+      </div>
+    </div>`;
+}
+
+function renderResults(query) {
+  if (!loaded) return;
+  const area = document.getElementById('results-area');
+  if (!area) return;
+
+  if (!query.trim()) {
+    area.innerHTML = `<div class="state-msg">Start typing to search across all three sheets</div>`;
+    return;
+  }
+
+  const res   = search(query);
+  const total = res.reduce((s, d) => s + d.results.length, 0);
+
+  if (total === 0) {
+    area.innerHTML = `<div class="state-msg">No results found for "<strong>${esc(query)}</strong>"</div>`;
+    return;
+  }
+
+  area.innerHTML = `<div class="results-grid">${res.map(renderSheetCol).join('')}</div>`;
+}
+
+function renderSheetCol(sheet) {
+  const { label, dotClass, results, error, loading, legend } = sheet;
+
+  return `
+    <div class="sheet-col">
+      <div class="sheet-header">
+        <div class="sheet-name">
+          <span class="sheet-dot ${esc(dotClass)}"></span>${esc(label)}
+        </div>
+        <span class="sheet-count">
+          ${loading ? '<span class="spinner" style="width:12px;height:12px"></span>'
+            : error ? 'error'
+            : (results.length) + ' result' + (results.length !== 1 ? 's' : '')}
+        </span>
+      </div>
+
+      ${legend ? renderLegend(legend) : ''}
+
+      ${error
+        ? `<div class="error-msg">${esc(error)}</div>`
+        : !results || results.length === 0
+          ? `<div class="state-msg" style="padding:16px 0;font-size:13px">No matches</div>`
+          : results.map(renderResultCard).join('')
+      }
+    </div>`;
+}
+
+function renderLegend(items) {
+  return `
+    <div class="legend">
+      ${items.map(item => `
+        <div class="legend-item">
+          <div class="legend-swatch" style="background:${item.color ? esc(item.color) : '#fff'};${!item.color ? 'border:1px solid #ccc' : ''}"></div>
+          <span>${esc(item.label)}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+function renderResultCard(r) {
+  const name    = [r.firstName, r.lastName].filter(Boolean).join(' ');
+  const stripe  = r.rowColor || '#e2e8f0';
+  const comment = r.comment && r.comment.toLowerCase() !== 'none' ? r.comment : null;
+
+  const fields = [
+    { label: 'Amount (USD)',   value: r.amountUSD    ? '$' + r.amountUSD : null, cls: 'amount' },
+    { label: 'Native amount',  value: r.amountNative || null },
+    { label: 'Date',           value: r.date         || null },
+    { label: 'Project',        value: r.project      || r.client || null },
+    { label: 'Country',        value: r.country      || null },
+    { label: 'Designation',    value: r.designation  || null },
+  ].filter(f => f.value);
+
+  return `
+    <div class="result-card">
+      <div class="rc-stripe" style="background:${esc(stripe)}"></div>
+      <div class="rc-body">
+        <div class="rc-name">${esc(name) || '—'}</div>
+        <div class="rc-email">${esc(r.email) || 'No email on record'}</div>
+        <div class="rc-fields">
+          ${fields.map(f => `
+            <div>
+              <div class="rc-field-label">${esc(f.label)}</div>
+              <div class="rc-field-value ${f.cls || ''}">${esc(f.value)}</div>
+            </div>`).join('')}
+        </div>
+        ${comment ? `<div class="rc-comment">${esc(comment)}</div>` : ''}
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════════
+
+function isConfigured() {
+  return CFG.clientId !== 'YOUR_CLIENT_ID_HERE' && CFG.tenantId !== 'YOUR_TENANT_ID_HERE';
+}
+
+function renderSetupRequired() {
+  document.getElementById('header-right').innerHTML = '';
+  document.getElementById('root').innerHTML = `
+    <div class="login-wrap">
+      <div class="login-card" style="max-width:500px">
+        <div class="login-icon">⚙️</div>
+        <h2 style="margin-bottom:12px">One-time setup needed</h2>
+        <p style="margin-bottom:20px">
+          Before the app works, you need to register it in Azure AD and paste two IDs into <code>index.html</code>.
+          This takes about 10 minutes and only needs to be done once.
+        </p>
+        <div style="background:#f0f6ff;border-radius:8px;padding:16px;text-align:left;font-size:13px;color:#333;line-height:1.8">
+          <strong>Quick steps:</strong><br>
+          1. Go to <a href="https://portal.azure.com" target="_blank" style="color:#1e6fb0">portal.azure.com</a> → App registrations → New registration<br>
+          2. Name it <em>Kyrios Honorarium Lookup</em>, register<br>
+          3. Copy <strong>Application (client) ID</strong> and <strong>Directory (tenant) ID</strong><br>
+          4. Open <code>index.html</code> in a text editor<br>
+          5. Replace <code>YOUR_CLIENT_ID_HERE</code> and <code>YOUR_TENANT_ID_HERE</code><br>
+          6. Add API permissions: Files.Read + Sites.Read.All (grant admin consent)<br>
+          7. Deploy to Vercel and add the URL as a redirect URI
+        </div>
+        <p style="margin-top:16px;font-size:12px;color:#999">
+          See <strong>SETUP.md</strong> for the full step-by-step guide.
+        </p>
+      </div>
+    </div>`;
+}
+
+async function boot() {
+  // Show setup screen immediately if config not filled in
+  if (!isConfigured()) {
+    renderSetupRequired();
+    return;
+  }
+
+  try {
+    await msalApp.initialize();
+    await msalApp.handleRedirectPromise().catch(() => {});
+
+    if (currentUser()) {
+      renderSearchPage();
+      loadAllSheets();
+    } else {
+      renderLogin();
+    }
+  } catch (e) {
+    document.getElementById('header-right').innerHTML = '';
+    document.getElementById('root').innerHTML = `
+      <div class="login-wrap">
+        <div class="login-card">
+          <div class="login-icon">⚠️</div>
+          <h2 style="margin-bottom:12px">Couldn't start the app</h2>
+          <div class="error-msg" style="text-align:left">${esc(e.message)}</div>
+          <p style="margin-top:16px;font-size:13px;color:#666">
+            Check that your <strong>Client ID</strong> and <strong>Tenant ID</strong> in <code>index.html</code> are correct,
+            and that the redirect URI is registered in Azure AD.
+          </p>
+        </div>
+      </div>`;
+  }
+}
+
+boot();
+</script>
+</body>
+</html>
