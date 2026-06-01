@@ -739,7 +739,7 @@ async function boot() {
       auth: {
         clientId:    CFG.clientId,
         authority:   `https://login.microsoftonline.com/${CFG.tenantId}`,
-        redirectUri: window.location.origin + window.location.pathname.replace(/\/$/, '')
+        redirectUri: window.location.origin
       },
       cache: { cacheLocation: "sessionStorage", storeAuthStateInCookie: false }
     });
