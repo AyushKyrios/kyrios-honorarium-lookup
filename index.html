@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kyrios Honorarium Lookup</title>
-  <script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -13,7 +13,7 @@
       background: #f0f2f5; color: #1a1a1a; min-height: 100vh;
     }
 
-    /* ââ Header ââ */
+    /* ── Header ── */
     .header {
       background: #0f2d4a; color: #fff; padding: 0 28px; height: 56px;
       display: flex; align-items: center; justify-content: space-between;
@@ -36,10 +36,10 @@
     }
     .btn-signout:hover { background: rgba(255,255,255,0.1); }
 
-    /* ââ Layout ââ */
+    /* ── Layout ── */
     .page { max-width: 1200px; margin: 0 auto; padding: 28px 20px; }
 
-    /* ââ Login ââ */
+    /* ── Login ── */
     .login-wrap {
       display: flex; align-items: center; justify-content: center;
       min-height: calc(100vh - 56px);
@@ -63,7 +63,7 @@
     }
     .btn-login:hover { background: #1a4870; }
 
-    /* ââ Search ââ */
+    /* ── Search ── */
     .search-card {
       background: #fff; border-radius: 12px; padding: 20px 24px;
       box-shadow: 0 2px 12px rgba(0,0,0,0.06); margin-bottom: 16px;
@@ -82,7 +82,7 @@
     .data-stats { font-size: 12px; color: #aaa; margin-top: 10px; }
     .data-stats strong { color: #1e6fb0; }
 
-    /* ââ Results grid ââ */
+    /* ── Results grid ── */
     .results-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -92,7 +92,7 @@
     @media (max-width: 900px)  { .results-grid { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 600px)  { .results-grid { grid-template-columns: 1fr; } }
 
-    /* ââ Sheet column ââ */
+    /* ── Sheet column ── */
     .sheet-col {
       background: #fff; border-radius: 12px; padding: 18px;
       box-shadow: 0 2px 12px rgba(0,0,0,0.06);
@@ -112,7 +112,7 @@
     .sheet-dot.em    { background: #8b5cf6; }
     .sheet-count { font-size: 12px; color: #aaa; }
 
-    /* ââ Colour legend ââ */
+    /* ── Colour legend ── */
     .legend {
       display: flex; flex-wrap: wrap; gap: 6px;
       margin-bottom: 14px; padding: 10px 12px;
@@ -128,7 +128,7 @@
       border: 1px solid rgba(0,0,0,0.12); flex-shrink: 0;
     }
 
-    /* ââ Result card ââ */
+    /* ── Result card ── */
     .result-card {
       border: 1px solid #eaeff5; border-radius: 9px;
       padding: 12px 14px 12px 0;
@@ -163,7 +163,7 @@
       border-left: 3px solid #c8d8ea; line-height: 1.5;
     }
 
-    /* ââ States ââ */
+    /* ── States ── */
     .state-msg { text-align: center; padding: 28px 16px; font-size: 14px; color: #bbb; }
     .spinner {
       display: inline-block; width: 18px; height: 18px;
@@ -181,10 +181,10 @@
 </head>
 <body>
 
-<!-- ââââââââââââââââââââââââââââââââââââââââââââââââ
-     â  EDIT THESE TWO VALUES BEFORE DEPLOYING     â
-     â  See SETUP.md for instructions              â
-     ââââââââââââââââââââââââââââââââââââââââââââââââ -->
+<!-- ╔══════════════════════════════════════════════╗
+     ║  EDIT THESE TWO VALUES BEFORE DEPLOYING     ║
+     ║  See SETUP.md for instructions              ║
+     ╚══════════════════════════════════════════════╝ -->
 <script>
 window.APP_CONFIG = {
   clientId: "eb343397-6cd8-4c74-90a8-6510fa0d1cdc",
@@ -245,9 +245,9 @@ window.APP_CONFIG = {
 <div id="root"></div>
 
 <script>
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════════════════════════
 // MSAL AUTH
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════════════════════════
 const CFG = window.APP_CONFIG;
 
 // msalApp is created inside boot() so construction errors are caught
@@ -278,9 +278,9 @@ async function login() {
 function logout()       { msalApp.logoutPopup(); }
 function currentUser()  { const a = msalApp.getAllAccounts(); return a.length ? a[0] : null; }
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════════════════════════
 // XLSX DOWNLOAD + PARSE
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════════════════════════
 
 async function fetchAndParseSheet(driveId, itemId) {
   const token = await getToken();
@@ -315,7 +315,7 @@ async function fetchAndParseSheet(driveId, itemId) {
   return parseSheetXml(await shFile.async('text'), sharedStrings, styleColors);
 }
 
-// ââ XML helpers ââââââââââââââââââââââââââââââââââââââââââââââââ
+// ── XML helpers ────────────────────────────────────────────────
 
 function parseSharedStrings(xml) {
   const doc = new DOMParser().parseFromString(xml, 'text/xml');
@@ -355,7 +355,7 @@ function parseStyleColors(xml) {
     const indexed = fg.getAttribute('indexed');
 
     if (rgb && rgb.length === 8) {
-      return '#' + rgb.slice(2).toUpperCase(); // AARRGGBB â #RRGGBB
+      return '#' + rgb.slice(2).toUpperCase(); // AARRGGBB → #RRGGBB
     }
     if (indexed !== null) {
       const idx = parseInt(indexed);
@@ -364,7 +364,7 @@ function parseStyleColors(xml) {
     return null;
   });
 
-  // Map cell xf index â colour
+  // Map cell xf index → colour
   return Array.from(doc.querySelectorAll('cellXfs > xf')).map(xf => {
     const fid = parseInt(xf.getAttribute('fillId') || '0');
     return fills[fid] || null;
@@ -437,9 +437,9 @@ function parseSheetXml(xml, sharedStrings, styleColors) {
   return rows;
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════════════════════════
 // DATA PARSING
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════════════════════════
 
 const HEADER_SIGNALS = ["first name","email","amount in usd","sr no","designation"];
 
@@ -492,9 +492,9 @@ function buildRecords(rawRows) {
   return records;
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════════════════════════
 // STATE + SEARCH
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════════════════════════
 
 let datasets = [];
 let loaded   = false;
@@ -534,9 +534,9 @@ function search(query) {
   return datasets.map(d => ({ ...d, results: q ? d.records.filter(r => match(r, q)) : [] }));
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════════════════════════
 // RENDER
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════════════════════════
 
 function esc(s) {
   return String(s || '')
@@ -564,10 +564,10 @@ function renderLogin() {
   document.getElementById('root').innerHTML = `
     <div class="login-wrap">
       <div class="login-card">
-        <div class="login-icon">ð</div>
+        <div class="login-icon">🔎</div>
         <h2>Honorarium Lookup</h2>
         <p>Search respondent honorariums across Team Aamir, Team Ajay and EM Gurgaon sheets. Sign in with your GRG Microsoft account to continue.</p>
-        <button class="btn-login" onclick="login()">â&nbsp;&nbsp;Sign in with Microsoft</button>
+        <button class="btn-login" onclick="login()">⊞&nbsp;&nbsp;Sign in with Microsoft</button>
       </div>
     </div>`;
 }
@@ -580,16 +580,16 @@ function renderSearchPage() {
         <div class="search-label">Search respondents</div>
         <input
           type="text" class="search-input" id="search-input"
-          placeholder="Type a name or email addressâ¦"
+          placeholder="Type a name or email address…"
           oninput="renderResults(this.value)"
           autocomplete="off" autofocus
         />
         <div class="data-stats" id="data-stats">
-          <span class="spinner"></span> Loading data from SharePointâ¦
+          <span class="spinner"></span> Loading data from SharePoint…
         </div>
       </div>
       <div id="results-area">
-        <div class="loading-full"><span class="spinner"></span> Downloading and reading sheetsâ¦</div>
+        <div class="loading-full"><span class="spinner"></span> Downloading and reading sheets…</div>
       </div>
     </div>`;
 }
@@ -671,7 +671,7 @@ function renderResultCard(r) {
     <div class="result-card">
       <div class="rc-stripe" style="background:${esc(stripe)}"></div>
       <div class="rc-body">
-        <div class="rc-name">${esc(name) || 'â'}</div>
+        <div class="rc-name">${esc(name) || '—'}</div>
         <div class="rc-email">${esc(r.email) || 'No email on record'}</div>
         <div class="rc-fields">
           ${fields.map(f => `
@@ -685,9 +685,9 @@ function renderResultCard(r) {
     </div>`;
 }
 
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════════════════════════
 // BOOT
-// âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+// ═══════════════════════════════════════════════════════════════
 
 function isConfigured() {
   return CFG.clientId !== 'YOUR_CLIENT_ID_HERE' && CFG.tenantId !== 'YOUR_TENANT_ID_HERE';
@@ -698,7 +698,7 @@ function renderSetupRequired() {
   document.getElementById('root').innerHTML = `
     <div class="login-wrap">
       <div class="login-card" style="max-width:500px">
-        <div class="login-icon">âï¸</div>
+        <div class="login-icon">⚙️</div>
         <h2 style="margin-bottom:12px">One-time setup needed</h2>
         <p style="margin-bottom:20px">
           Before the app works, you need to register it in Azure AD and paste two IDs into <code>index.html</code>.
@@ -706,12 +706,12 @@ function renderSetupRequired() {
         </p>
         <div style="background:#f0f6ff;border-radius:8px;padding:16px;text-align:left;font-size:13px;color:#333;line-height:1.8">
           <strong>Quick steps:</strong><br>
-          1. Go to <a href="https://portal.azure.com" target="_blank" style="color:#1e6fb0">portal.azure.com</a> â App registrations â New registration<br>
+          1. Go to <a href="https://portal.azure.com" target="_blank" style="color:#1e6fb0">portal.azure.com</a> → App registrations → New registration<br>
           2. Name it <em>Kyrios Honorarium Lookup</em>, register<br>
           3. Copy <strong>Application (client) ID</strong> and <strong>Directory (tenant) ID</strong><br>
           4. Open <code>index.html</code> in a text editor<br>
           5. Replace <code>YOUR_CLIENT_ID_HERE</code> and <code>YOUR_TENANT_ID_HERE</code><br>
-          6. Add API permission: <strong>Files.Read</strong> (user consent â no admin needed)<br>
+          6. Add API permission: <strong>Files.Read</strong> (user consent — no admin needed)<br>
           7. Deploy to Vercel and add the URL as a redirect URI
         </div>
         <p style="margin-top:16px;font-size:12px;color:#999">
@@ -722,16 +722,51 @@ function renderSetupRequired() {
 }
 
 async function boot() {
-  if (!isConfigured()) { renderSetupRequired(); return; }
+  // Show setup screen immediately if config not filled in
+  if (!isConfigured()) {
+    renderSetupRequired();
+    return;
+  }
+
   try {
-    if (typeof msal === 'undefined') throw new Error('Microsoft authentication library (MSAL) failed to load. Please check your internet connection and try refreshing the page.');
-    msalApp = new msal.PublicClientApplication({ auth: { clientId: CFG.clientId, authority: `https://login.microsoftonline.com/${CFG.tenantId}`, redirectUri: window.location.origin + window.location.pathname.replace(/\/$/, '') }, cache: { cacheLocation: "sessionStorage", storeAuthStateInCookie: false } });
+    // Guard: MSAL script may have failed to load
+    if (typeof msal === 'undefined') {
+      throw new Error('Microsoft authentication library (MSAL) failed to load. Please check your internet connection and try refreshing the page.');
+    }
+
+    // Create the MSAL client inside the try/catch so constructor errors are visible
+    msalApp = new msal.PublicClientApplication({
+      auth: {
+        clientId:    CFG.clientId,
+        authority:   `https://login.microsoftonline.com/${CFG.tenantId}`,
+        redirectUri: window.location.origin + window.location.pathname.replace(/\/$/, '')
+      },
+      cache: { cacheLocation: "sessionStorage", storeAuthStateInCookie: false }
+    });
+
     await msalApp.initialize();
     await msalApp.handleRedirectPromise().catch(() => {});
-    if (currentUser()) { renderSearchPage(); loadAllSheets(); } else { renderLogin(); }
+
+    if (currentUser()) {
+      renderSearchPage();
+      loadAllSheets();
+    } else {
+      renderLogin();
+    }
   } catch (e) {
     document.getElementById('header-right').innerHTML = '';
-    document.getElementById('root').innerHTML = `<div class="login-wrap"><div class="login-card"><div class="login-icon">â ï¸</div><h2 style="margin-bottom:12px">Couldn't start the app</h2><div class="error-msg" style="text-align:left">${esc(e.message)}</div><p style="margin-top:16px;font-size:13px;color:#666">Check that your <strong>Client ID</strong> and <strong>Tenant ID</strong> in <code>index.html</code> are correct, and that the redirect URI is registered in Azure AD.</p></div></div>`;
+    document.getElementById('root').innerHTML = `
+      <div class="login-wrap">
+        <div class="login-card">
+          <div class="login-icon">⚠️</div>
+          <h2 style="margin-bottom:12px">Couldn't start the app</h2>
+          <div class="error-msg" style="text-align:left">${esc(e.message)}</div>
+          <p style="margin-top:16px;font-size:13px;color:#666">
+            Check that your <strong>Client ID</strong> and <strong>Tenant ID</strong> in <code>index.html</code> are correct,
+            and that the redirect URI is registered in Azure AD.
+          </p>
+        </div>
+      </div>`;
   }
 }
 
