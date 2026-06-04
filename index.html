@@ -262,20 +262,21 @@ async function getToken() {
     const r = await msalApp.acquireTokenSilent({ scopes: SCOPES, account: accounts[0] });
     return r.accessToken;
   } catch {
-    const r = await msalApp.acquireTokenPopup({ scopes: SCOPES });
-    return r.accessToken;
+    // Fall back to redirect — page will reload after token acquired
+    await msalApp.acquireTokenRedirect({ scopes: SCOPES });
+    return null; // won't reach here; page redirects
   }
 }
 
 async function login() {
   try {
-    await msalApp.loginPopup({ scopes: SCOPES });
-    await boot();
+    await msalApp.loginRedirect({ scopes: SCOPES });
+    // Page will redirect to Microsoft, then return to app
   } catch (e) {
     showError("Sign-in failed: " + e.message);
   }
 }
-function logout()       { msalApp.logoutPopup(); }
+function logout()       { msalApp.logoutRedirect(); }
 function currentUser()  { const a = msalApp.getAllAccounts(); return a.length ? a[0] : null; }
 
 // ═══════════════════════════════════════════════════════════════
