@@ -253,7 +253,7 @@ const CFG = window.APP_CONFIG;
 // msalApp is created inside boot() so construction errors are caught
 let msalApp = null;
 
-const SCOPES = ["Files.Read"];
+const SCOPES = ["Files.Read", "Sites.Read.All"];
 
 async function getToken() {
   const accounts = msalApp.getAllAccounts();
@@ -442,10 +442,11 @@ function parseSheetXml(xml, sharedStrings, styleColors) {
 // DATA PARSING
 // ═══════════════════════════════════════════════════════════════
 
-const HEADER_SIGNALS = ["first name","email","amount in usd","sr no","designation"];
+const HEADER_SIGNALS = ["first name","email","amount in usd","sr no","s.no","designation"];
 
 const COL_MAP = {
   "sr no":                     "srNo",
+  "s.no":                      "srNo",
   "client":                    "client",
   "pname":                     "project",
   "project name":              "project",
