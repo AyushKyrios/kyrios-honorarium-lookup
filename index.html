@@ -304,16 +304,23 @@ async function fetchAndParseSheet(driveId, itemId) {
   const stFile = zip.file('xl/styles.xml');
   const styleColors = stFile ? parseStyleColors(await stFile.async('text')) : [];
 
-  // 3. First sheet path
+  // 3. ALL sheet paths (handles multi-tab workbooks)
   const relsFile = zip.file('xl/_rels/workbook.xml.rels');
-  const sheetPath = relsFile
-    ? resolveSheetPath(await relsFile.async('text'))
-    : 'xl/worksheets/sheet1.xml';
+  const sheetPaths = relsFile
+    ? resolveAllSheetPaths(await relsFile.async('text'))
+    : ['xl/worksheets/sheet1.xml'];
 
-  // 4. Parse sheet rows
-  const shFile = zip.file(sheetPath);
-  if (!shFile) throw new Error(`Sheet file not found: ${sheetPath}`);
-  return parseSheetXml(await shFile.async('text'), sharedStrings, styleColors);
+  // 4. Parse every sheet; collect records from each tab that has a valid header
+  let allRecords = [];
+  for (const sheetPath of sheetPaths) {
+    const shFile = zip.file(sheetPath);
+    if (!shFile) continue;
+    const rows = parseSheetXml(await shFile.async('text'), sharedStrings, styleColors);
+    const recs = buildRecords(rows);
+    console.log(`[${sheetPath}] ${rows.length} rows → ${recs.length} records`);
+    allRecords = allRecords.concat(recs);
+  }
+  return allRecords;
 }
 
 // ── XML helpers ────────────────────────────────────────────────
@@ -372,16 +379,17 @@ function parseStyleColors(xml) {
   });
 }
 
-function resolveSheetPath(relsXml) {
+function resolveAllSheetPaths(relsXml) {
   const doc = new DOMParser().parseFromString(relsXml, 'text/xml');
-  const rel = Array.from(doc.querySelectorAll('Relationship')).find(r =>
-    (r.getAttribute('Type') || '').includes('/worksheet')
-  );
-  if (!rel) return 'xl/worksheets/sheet1.xml';
-  const t = rel.getAttribute('Target') || '';
-  if (t.startsWith('/')) return t.slice(1);                   // /xl/worksheets/sheet1.xml
-  if (t.startsWith('xl/')) return t;                          // xl/worksheets/sheet1.xml
-  return 'xl/' + t;                                           // worksheets/sheet1.xml
+  const paths = [];
+  for (const rel of doc.querySelectorAll('Relationship')) {
+    if (!(rel.getAttribute('Type') || '').includes('/worksheet')) continue;
+    let t = rel.getAttribute('Target') || '';
+    if (t.startsWith('/')) t = t.slice(1);
+    else if (!t.startsWith('xl/')) t = 'xl/' + t;
+    paths.push(t);
+  }
+  return paths.length ? paths : ['xl/worksheets/sheet1.xml'];
 }
 
 function colToIndex(col) {
@@ -405,7 +413,6 @@ function parseSheetXml(xml, sharedStrings, styleColors) {
 
     const values = new Array(colCount).fill('');
     let rowColor  = null;
-    let firstCell = true;
 
     for (const cell of cells) {
       const ref   = cell.getAttribute('r') || 'A1';
@@ -424,12 +431,9 @@ function parseSheetXml(xml, sharedStrings, styleColors) {
       }
       if (cidx < colCount) values[cidx] = String(val);
 
-      // Row colour: use first cell that has a fill colour
-      if (firstCell && styleColors[sIdx]) {
+      // Row colour: use the first cell in the row that carries a fill colour
+      if (!rowColor && styleColors[sIdx]) {
         rowColor = styleColors[sIdx];
-        firstCell = false;
-      } else if (firstCell) {
-        firstCell = false; // still advance so we don't skip all cells
       }
     }
 
@@ -512,7 +516,7 @@ async function loadAllSheets() {
   results.forEach((r, i) => {
     datasets[i].loading = false;
     if (r.status === 'fulfilled') {
-      datasets[i].records = buildRecords(r.value);
+      datasets[i].records = r.value; // already records (multi-sheet aware)
     } else {
       datasets[i].error = r.reason?.message || 'Unknown error';
     }
