@@ -563,12 +563,27 @@ const charts    = {};         // Chart.js instances keyed by id
 function excelDateToJS(val) {
   if (!val) return null;
   const s = String(val).trim();
-  if (/[\/\-]/.test(s)) {
-    const d = new Date(s); return isNaN(d) ? null : d;
+  if (!s) return null;
+
+  // 1. Pure Excel serial number (digits only)
+  if (/^\d+(\.\d+)?$/.test(s)) {
+    const n = parseFloat(s);
+    if (n >= 1) {
+      const d = new Date(Math.round((n - 25569) * 86400000));
+      if (!isNaN(d.getTime())) return d;
+    }
+    return null;
   }
-  const n = parseFloat(s);
-  if (isNaN(n) || n < 1) return null;
-  const d = new Date(Math.round((n - 25569) * 86400000));
+
+  // 2. DD-Mon-YYYY or DD/Mon/YYYY  e.g. "23-Jun-2026", "05/Jan/2025"
+  const m = s.match(/^(\d{1,2})[-\/]([A-Za-z]{3,})[-\/](\d{4})$/);
+  if (m) {
+    const d = new Date(`${m[2]} ${parseInt(m[1])}, ${m[3]}`);
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // 3. Fallback: let the browser try
+  const d = new Date(s);
   return isNaN(d.getTime()) ? null : d;
 }
 
