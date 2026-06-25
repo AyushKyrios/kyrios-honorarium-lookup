@@ -6,6 +6,7 @@
   <title>Kyrios Honorarium Lookup</title>
   <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -35,6 +36,21 @@
       border-radius: 5px; cursor: pointer; font-size: 12px;
     }
     .btn-signout:hover { background: rgba(255,255,255,0.1); }
+
+    /* ── Tab nav ── */
+    .tab-nav {
+      background: #fff; border-bottom: 2px solid #e8f2fb;
+      padding: 0 24px; display: flex; gap: 4px;
+      position: sticky; top: 56px; z-index: 99;
+    }
+    .tab-btn {
+      padding: 13px 18px; font-size: 13px; font-weight: 500; color: #888;
+      cursor: pointer; border: none; background: none;
+      border-bottom: 2px solid transparent; margin-bottom: -2px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .tab-btn:hover  { color: #1e6fb0; }
+    .tab-btn.active { color: #1e6fb0; border-bottom-color: #1e6fb0; }
 
     /* ── Layout ── */
     .page { max-width: 1200px; margin: 0 auto; padding: 28px 20px; }
@@ -84,13 +100,11 @@
 
     /* ── Results grid ── */
     .results-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 16px;
-      align-items: start;
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 16px; align-items: start;
     }
-    @media (max-width: 900px)  { .results-grid { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 600px)  { .results-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 900px) { .results-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 600px) { .results-grid { grid-template-columns: 1fr; } }
 
     /* ── Sheet column ── */
     .sheet-col {
@@ -99,8 +113,7 @@
     }
     .sheet-header {
       display: flex; align-items: center; justify-content: space-between;
-      padding-bottom: 12px; margin-bottom: 12px;
-      border-bottom: 2px solid #e8f2fb;
+      padding-bottom: 12px; margin-bottom: 12px; border-bottom: 2px solid #e8f2fb;
     }
     .sheet-name {
       font-size: 13px; font-weight: 600; color: #0f2d4a;
@@ -116,13 +129,9 @@
     .legend {
       display: flex; flex-wrap: wrap; gap: 6px;
       margin-bottom: 14px; padding: 10px 12px;
-      background: #f8fafc; border-radius: 7px;
-      border: 1px solid #eaeff5;
+      background: #f8fafc; border-radius: 7px; border: 1px solid #eaeff5;
     }
-    .legend-item {
-      display: flex; align-items: center; gap: 5px;
-      font-size: 11px; color: #555;
-    }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: #555; }
     .legend-swatch {
       width: 12px; height: 12px; border-radius: 3px;
       border: 1px solid rgba(0,0,0,0.12); flex-shrink: 0;
@@ -131,24 +140,18 @@
     /* ── Result card ── */
     .result-card {
       border: 1px solid #eaeff5; border-radius: 9px;
-      padding: 12px 14px 12px 0;
-      margin-bottom: 10px;
-      display: flex; gap: 0;
-      transition: box-shadow 0.15s;
-      overflow: hidden;
+      padding: 12px 14px 12px 0; margin-bottom: 10px;
+      display: flex; gap: 0; transition: box-shadow 0.15s; overflow: hidden;
     }
     .result-card:last-child { margin-bottom: 0; }
     .result-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,0.07); }
-
     .rc-stripe {
       width: 4px; flex-shrink: 0; border-radius: 9px 0 0 9px;
       margin-right: 12px; background: #e2e8f0;
     }
     .rc-body { flex: 1; min-width: 0; }
-
     .rc-name  { font-size: 14px; font-weight: 600; color: #0f2d4a; margin-bottom: 2px; }
     .rc-email { font-size: 12px; color: #1e6fb0; margin-bottom: 10px; word-break: break-all; }
-
     .rc-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
     .rc-field-label {
       font-size: 10px; color: #aaa; text-transform: uppercase;
@@ -156,12 +159,106 @@
     }
     .rc-field-value { font-size: 12px; color: #333; font-weight: 500; }
     .rc-field-value.amount { color: #1a7a4a; }
-
     .rc-comment {
       margin-top: 8px; font-size: 11px; color: #666;
       background: #f7f9fc; padding: 6px 9px; border-radius: 5px;
       border-left: 3px solid #c8d8ea; line-height: 1.5;
     }
+
+    /* ── Dashboard ── */
+    .dash-row {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;
+    }
+    @media (max-width: 768px) { .dash-row { grid-template-columns: 1fr; } }
+    .dash-card {
+      background: #fff; border-radius: 12px; padding: 22px 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    }
+    .dash-card-full {
+      background: #fff; border-radius: 12px; padding: 22px 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06); margin-bottom: 20px;
+    }
+    .dash-title {
+      font-size: 13px; font-weight: 700; color: #0f2d4a; text-transform: uppercase;
+      letter-spacing: 0.5px; margin-bottom: 16px; display: flex; align-items: center; gap: 7px;
+    }
+    .dash-total {
+      font-size: 13px; color: #666; margin-bottom: 12px;
+    }
+    .dash-total strong { color: #0f2d4a; font-size: 22px; }
+    .chart-wrap { position: relative; height: 260px; }
+    .top10-table { width: 100%; border-collapse: collapse; }
+    .top10-table th {
+      font-size: 10px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px;
+      font-weight: 600; padding: 7px 10px; text-align: left; border-bottom: 1px solid #eaeff5;
+    }
+    .top10-table td {
+      font-size: 12px; padding: 9px 10px; border-bottom: 1px solid #f0f4f8;
+      color: #333; vertical-align: middle;
+    }
+    .top10-table tr:last-child td { border-bottom: none; }
+    .top10-table tr:hover td { background: #f8fafc; }
+    .rank-badge {
+      width: 24px; height: 24px; border-radius: 50%; display: inline-flex;
+      align-items: center; justify-content: center; font-size: 11px; font-weight: 700;
+      background: #e8f2fb; color: #1e6fb0;
+    }
+    .rank-badge.gold   { background: #fff3cd; color: #9a6800; }
+    .rank-badge.silver { background: #e9e9e9; color: #555; }
+    .rank-badge.bronze { background: #fde8d8; color: #a04000; }
+    .count-pill {
+      background: #e8f2fb; color: #1e6fb0; border-radius: 20px;
+      padding: 3px 10px; font-size: 11px; font-weight: 700;
+    }
+
+    /* ── Duplicates ── */
+    .dup-summary { display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
+    .dup-stat {
+      background: #fff; border-radius: 10px; padding: 16px 20px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06); flex: 1; min-width: 130px;
+    }
+    .dup-stat-value { font-size: 26px; font-weight: 700; color: #0f2d4a; line-height: 1; }
+    .dup-stat-label { font-size: 11px; color: #888; margin-top: 4px; }
+    .dup-filters { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+    .dup-filter-btn {
+      padding: 7px 16px; border-radius: 20px; border: 1.5px solid #dde3ea;
+      font-size: 12px; font-weight: 500; cursor: pointer; background: #fff; color: #555;
+      transition: all 0.15s;
+    }
+    .dup-filter-btn.active { background: #0f2d4a; color: #fff; border-color: #0f2d4a; }
+    .dup-group {
+      background: #fff; border-radius: 12px; padding: 16px 18px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06); margin-bottom: 16px;
+    }
+    .dup-group-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      margin-bottom: 14px; gap: 12px;
+    }
+    .dup-group-name { font-size: 15px; font-weight: 600; color: #0f2d4a; margin-bottom: 2px; }
+    .dup-group-email { font-size: 12px; color: #1e6fb0; }
+    .dup-badge {
+      font-size: 11px; font-weight: 600; padding: 4px 11px; border-radius: 20px;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .dup-badge.within { background: #fff3cd; color: #9a6800; }
+    .dup-badge.cross  { background: #fde8d8; color: #c04000; }
+    .dup-entries {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px;
+    }
+    .dup-entry {
+      border: 1px solid #eaeff5; border-radius: 8px;
+      padding: 10px 12px 10px 0; display: flex; overflow: hidden;
+    }
+    .dup-entry-stripe {
+      width: 4px; flex-shrink: 0; border-radius: 8px 0 0 8px; margin-right: 10px;
+    }
+    .dup-entry-body { flex: 1; min-width: 0; font-size: 12px; color: #444; }
+    .dup-entry-sheet {
+      font-size: 10px; color: #888; text-transform: uppercase; letter-spacing: 0.4px;
+      display: flex; align-items: center; gap: 5px; margin-bottom: 5px;
+    }
+    .dup-entry-row { margin-bottom: 3px; }
+    .dup-entry-row strong { color: #0f2d4a; }
 
     /* ── States ── */
     .state-msg { text-align: center; padding: 28px 16px; font-size: 14px; color: #bbb; }
@@ -242,6 +339,7 @@ window.APP_CONFIG = {
   <div id="header-right"></div>
 </header>
 
+<div id="nav-area"></div>
 <div id="root"></div>
 
 <script>
@@ -249,10 +347,7 @@ window.APP_CONFIG = {
 // MSAL AUTH
 // ═══════════════════════════════════════════════════════════════
 const CFG = window.APP_CONFIG;
-
-// msalApp is created inside boot() so construction errors are caught
 let msalApp = null;
-
 const SCOPES = ["Files.Read", "Sites.Read.All"];
 
 async function getToken() {
@@ -262,22 +357,16 @@ async function getToken() {
     const r = await msalApp.acquireTokenSilent({ scopes: SCOPES, account: accounts[0] });
     return r.accessToken;
   } catch {
-    // Fall back to redirect — page will reload after token acquired
     await msalApp.acquireTokenRedirect({ scopes: SCOPES });
-    return null; // won't reach here; page redirects
+    return null;
   }
 }
-
 async function login() {
-  try {
-    await msalApp.loginRedirect({ scopes: SCOPES });
-    // Page will redirect to Microsoft, then return to app
-  } catch (e) {
-    showError("Sign-in failed: " + e.message);
-  }
+  try { await msalApp.loginRedirect({ scopes: SCOPES }); }
+  catch (e) { showError("Sign-in failed: " + e.message); }
 }
-function logout()       { msalApp.logoutRedirect(); }
-function currentUser()  { const a = msalApp.getAllAccounts(); return a.length ? a[0] : null; }
+function logout()      { msalApp.logoutRedirect(); }
+function currentUser() { const a = msalApp.getAllAccounts(); return a.length ? a[0] : null; }
 
 // ═══════════════════════════════════════════════════════════════
 // XLSX DOWNLOAD + PARSE
@@ -285,8 +374,6 @@ function currentUser()  { const a = msalApp.getAllAccounts(); return a.length ? 
 
 async function fetchAndParseSheet(driveId, itemId) {
   const token = await getToken();
-
-  // Download raw xlsx binary
   const res = await fetch(
     `https://graph.microsoft.com/v1.0/drives/${driveId}/items/${itemId}/content`,
     { headers: { Authorization: `Bearer ${token}` } }
@@ -296,21 +383,17 @@ async function fetchAndParseSheet(driveId, itemId) {
   const buf = await res.arrayBuffer();
   const zip = await JSZip.loadAsync(buf);
 
-  // 1. Shared strings
   const ssFile = zip.file('xl/sharedStrings.xml');
   const sharedStrings = ssFile ? parseSharedStrings(await ssFile.async('text')) : [];
 
-  // 2. Fill colours per style index
   const stFile = zip.file('xl/styles.xml');
   const styleColors = stFile ? parseStyleColors(await stFile.async('text')) : [];
 
-  // 3. ALL sheet paths (handles multi-tab workbooks)
   const relsFile = zip.file('xl/_rels/workbook.xml.rels');
   const sheetPaths = relsFile
     ? resolveAllSheetPaths(await relsFile.async('text'))
     : ['xl/worksheets/sheet1.xml'];
 
-  // 4. Parse every sheet; collect records from each tab that has a valid header
   let allRecords = [];
   for (const sheetPath of sheetPaths) {
     const shFile = zip.file(sheetPath);
@@ -323,21 +406,17 @@ async function fetchAndParseSheet(driveId, itemId) {
   return allRecords;
 }
 
-// ── XML helpers ────────────────────────────────────────────────
+// ── XML helpers ──────────────────────────────────────────────
 
 function parseSharedStrings(xml) {
   const doc = new DOMParser().parseFromString(xml, 'text/xml');
   return Array.from(doc.querySelectorAll('si')).map(si =>
-    Array.from(si.querySelectorAll('t'))
-      .map(t => t.textContent)
-      .join('')
+    Array.from(si.querySelectorAll('t')).map(t => t.textContent).join('')
   );
 }
 
 function parseStyleColors(xml) {
   const doc = new DOMParser().parseFromString(xml, 'text/xml');
-
-  // Indexed colour palette (Excel legacy)
   const INDEXED = [
     '#000000','#FFFFFF','#FF0000','#00FF00','#0000FF','#FFFF00','#FF00FF','#00FFFF',
     '#000000','#FFFFFF','#FF0000','#00FF00','#0000FF','#FFFF00','#FF00FF','#00FFFF',
@@ -348,31 +427,17 @@ function parseStyleColors(xml) {
     '#3366FF','#33CCCC','#99CC00','#FFCC00','#FF9900','#FF6600','#666699','#969696',
     '#003366','#339966','#003300','#333300','#993300','#993366','#333399','#333333'
   ];
-
-  // Parse fills
   const fills = Array.from(doc.querySelectorAll('fills > fill')).map(f => {
     const pf = f.querySelector('patternFill');
     if (!pf) return null;
-    const type = pf.getAttribute('patternType') || '';
-    if (type === 'none') return null;
-
+    if ((pf.getAttribute('patternType') || '') === 'none') return null;
     const fg = pf.querySelector('fgColor');
     if (!fg) return null;
-
-    const rgb     = fg.getAttribute('rgb');
-    const indexed = fg.getAttribute('indexed');
-
-    if (rgb && rgb.length === 8) {
-      return '#' + rgb.slice(2).toUpperCase(); // AARRGGBB → #RRGGBB
-    }
-    if (indexed !== null) {
-      const idx = parseInt(indexed);
-      return INDEXED[idx] || null;
-    }
+    const rgb = fg.getAttribute('rgb'), indexed = fg.getAttribute('indexed');
+    if (rgb && rgb.length === 8) return '#' + rgb.slice(2).toUpperCase();
+    if (indexed !== null) return INDEXED[parseInt(indexed)] || null;
     return null;
   });
-
-  // Map cell xf index → colour
   return Array.from(doc.querySelectorAll('cellXfs > xf')).map(xf => {
     const fid = parseInt(xf.getAttribute('fillId') || '0');
     return fills[fid] || null;
@@ -401,28 +466,21 @@ function colToIndex(col) {
 function parseSheetXml(xml, sharedStrings, styleColors) {
   const doc  = new DOMParser().parseFromString(xml, 'text/xml');
   const rows = [];
-
   for (const rowEl of doc.querySelectorAll('row')) {
     const cells = Array.from(rowEl.querySelectorAll('c'));
     if (!cells.length) { rows.push({ values: [], rowColor: null }); continue; }
-
-    // Determine sparse column count
     const lastRef  = cells[cells.length - 1].getAttribute('r') || 'A1';
     const lastCol  = lastRef.match(/[A-Z]+/)?.[0] || 'A';
     const colCount = colToIndex(lastCol) + 1;
-
-    const values = new Array(colCount).fill('');
-    let rowColor  = null;
-
+    const values   = new Array(colCount).fill('');
+    let rowColor   = null;
     for (const cell of cells) {
-      const ref   = cell.getAttribute('r') || 'A1';
-      const col   = ref.match(/[A-Z]+/)?.[0] || 'A';
-      const cidx  = colToIndex(col);
-      const type  = cell.getAttribute('t') || '';
-      const sIdx  = parseInt(cell.getAttribute('s') || '0');
-      const vEl   = cell.querySelector('v');
-
-      // Value
+      const ref  = cell.getAttribute('r') || 'A1';
+      const col  = ref.match(/[A-Z]+/)?.[0] || 'A';
+      const cidx = colToIndex(col);
+      const type = cell.getAttribute('t') || '';
+      const sIdx = parseInt(cell.getAttribute('s') || '0');
+      const vEl  = cell.querySelector('v');
       let val = '';
       if (vEl) {
         val = type === 's'
@@ -430,13 +488,8 @@ function parseSheetXml(xml, sharedStrings, styleColors) {
           : vEl.textContent;
       }
       if (cidx < colCount) values[cidx] = String(val);
-
-      // Row colour: use the first cell in the row that carries a fill colour
-      if (!rowColor && styleColors[sIdx]) {
-        rowColor = styleColors[sIdx];
-      }
+      if (!rowColor && styleColors[sIdx]) rowColor = styleColors[sIdx];
     }
-
     rows.push({ values, rowColor });
   }
   return rows;
@@ -471,23 +524,18 @@ const COL_MAP = {
 
 function buildRecords(rawRows) {
   if (!rawRows.length) return [];
-
-  // Find header row
   let hIdx = 0;
   for (let i = 0; i < Math.min(12, rawRows.length); i++) {
     const cells = rawRows[i].values.map(c => String(c).trim().toLowerCase());
     if (HEADER_SIGNALS.filter(s => cells.includes(s)).length >= 2) { hIdx = i; break; }
   }
-
   const hCells = rawRows[hIdx].values.map(c => String(c).trim().toLowerCase());
   const colIdx = {};
   hCells.forEach((h, i) => { if (COL_MAP[h]) colIdx[COL_MAP[h]] = i; });
-
   const records = [];
   for (let i = hIdx + 1; i < rawRows.length; i++) {
     const { values, rowColor } = rawRows[i];
     if (!values.length || values.every(v => !v)) continue;
-
     const rec = { rowColor };
     Object.entries(colIdx).forEach(([field, ci]) => {
       rec[field] = ci < values.length ? String(values[ci] || '').trim() : '';
@@ -499,35 +547,57 @@ function buildRecords(rawRows) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// STATE + SEARCH
+// STATE
 // ═══════════════════════════════════════════════════════════════
 
-let datasets = [];
-let loaded   = false;
+let datasets    = [];
+let loaded      = false;
+let currentView = 'search';   // 'search' | 'dashboard' | 'duplicates'
+let dupFilter   = 'all';      // 'all' | 'within' | 'cross'
+const charts    = {};         // Chart.js instances keyed by id
 
-async function loadAllSheets() {
-  datasets = CFG.sheets.map(s => ({ ...s, records: [], error: null, loading: true }));
-  renderSearchPage();
+// ═══════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════
 
-  const results = await Promise.allSettled(
-    CFG.sheets.map(s => fetchAndParseSheet(s.driveId, s.itemId))
-  );
-
-  results.forEach((r, i) => {
-    datasets[i].loading = false;
-    if (r.status === 'fulfilled') {
-      datasets[i].records = r.value; // already records (multi-sheet aware)
-    } else {
-      datasets[i].error = r.reason?.message || 'Unknown error';
-    }
-  });
-
-  loaded = true;
-  const total = datasets.reduce((s, d) => s + d.records.length, 0);
-  const statsEl = document.getElementById('data-stats');
-  if (statsEl) statsEl.innerHTML = `<strong>${total.toLocaleString()}</strong> respondents loaded across ${datasets.length} sheets`;
-  renderResults(document.getElementById('search-input')?.value || '');
+function excelDateToJS(val) {
+  if (!val) return null;
+  const s = String(val).trim();
+  if (/[\/\-]/.test(s)) {
+    const d = new Date(s); return isNaN(d) ? null : d;
+  }
+  const n = parseFloat(s);
+  if (isNaN(n) || n < 1) return null;
+  const d = new Date(Math.round((n - 25569) * 86400000));
+  return isNaN(d.getTime()) ? null : d;
 }
+
+function parseUSD(val) {
+  if (!val) return 0;
+  const n = parseFloat(String(val).replace(/[^0-9.-]/g, ''));
+  return isNaN(n) ? 0 : n;
+}
+
+function formatEntryDate(val) {
+  const d = excelDateToJS(val);
+  if (!d) return val || '—';
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function monthKey(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+function monthLabel(d) {
+  return d.toLocaleString('default', { month: 'short', year: 'numeric' });
+}
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SEARCH
+// ═══════════════════════════════════════════════════════════════
 
 function match(rec, q) {
   const name  = `${rec.firstName || ''} ${rec.lastName || ''}`.toLowerCase();
@@ -541,7 +611,473 @@ function search(query) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// RENDER
+// ANALYTICS
+// ═══════════════════════════════════════════════════════════════
+
+function findDuplicates() {
+  const byEmail = {};
+  datasets.forEach(ds => {
+    ds.records.forEach(r => {
+      const key = (r.email || '').toLowerCase().trim();
+      if (!key) return;
+      if (!byEmail[key]) byEmail[key] = [];
+      byEmail[key].push({ ...r, sheetLabel: ds.label, dotClass: ds.dotClass });
+    });
+  });
+  const groups = [];
+  Object.entries(byEmail).forEach(([email, recs]) => {
+    if (recs.length < 2) return;
+    const sheetSet = [...new Set(recs.map(r => r.sheetLabel))];
+    groups.push({
+      email,
+      name: [recs[0].firstName, recs[0].lastName].filter(Boolean).join(' '),
+      entries: recs,
+      crossSheet: sheetSet.length > 1,
+      sheets: sheetSet
+    });
+  });
+  groups.sort((a, b) => {
+    if (a.crossSheet !== b.crossSheet) return a.crossSheet ? -1 : 1;
+    return b.entries.length - a.entries.length;
+  });
+  return groups;
+}
+
+function getDashboardData() {
+  const sheetTotals = datasets.map(d => ({
+    label: d.label, dotClass: d.dotClass, count: d.records.length
+  }));
+
+  // Monthly USD map
+  const mMap = {};
+  datasets.forEach(ds => {
+    ds.records.forEach(r => {
+      const d = excelDateToJS(r.date);
+      if (!d) return;
+      const k = monthKey(d);
+      if (!mMap[k]) mMap[k] = { key: k, label: monthLabel(d), usd: 0 };
+      mMap[k].usd += parseUSD(r.amountUSD);
+    });
+  });
+  const monthly = Object.values(mMap).sort((a, b) => a.key.localeCompare(b.key));
+
+  // Top 10 by count
+  const byEmail = {};
+  datasets.forEach(ds => {
+    ds.records.forEach(r => {
+      const key = (r.email || '').toLowerCase().trim()
+                  || `${r.firstName||''} ${r.lastName||''}`.trim().toLowerCase();
+      if (!key) return;
+      if (!byEmail[key]) byEmail[key] = { count: 0, best: r };
+      byEmail[key].count++;
+      // Keep the most complete record as representative
+      const c = byEmail[key].best;
+      if ((!c.designation && r.designation) || (!c.country && r.country) || (!c.studyType && r.studyType)) {
+        byEmail[key].best = { ...c, ...Object.fromEntries(Object.entries(r).filter(([,v]) => v)) };
+      }
+    });
+  });
+  const top10 = Object.values(byEmail)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10);
+
+  return { sheetTotals, monthly, top10 };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LOAD
+// ═══════════════════════════════════════════════════════════════
+
+async function loadAllSheets() {
+  datasets = CFG.sheets.map(s => ({ ...s, records: [], error: null, loading: true }));
+  renderView();
+
+  const results = await Promise.allSettled(
+    CFG.sheets.map(s => fetchAndParseSheet(s.driveId, s.itemId))
+  );
+
+  results.forEach((r, i) => {
+    datasets[i].loading = false;
+    if (r.status === 'fulfilled') {
+      datasets[i].records = r.value;
+    } else {
+      datasets[i].error = r.reason?.message || 'Unknown error';
+    }
+  });
+
+  loaded = true;
+  const total = datasets.reduce((s, d) => s + d.records.length, 0);
+  const statsEl = document.getElementById('data-stats');
+  if (statsEl) statsEl.innerHTML =
+    `<strong>${total.toLocaleString()}</strong> respondents loaded across ${datasets.length} sheets`;
+  renderView();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// NAVIGATION
+// ═══════════════════════════════════════════════════════════════
+
+function renderTabNav() {
+  document.getElementById('nav-area').innerHTML = `
+    <nav class="tab-nav">
+      <button class="tab-btn ${currentView==='search'    ?'active':''}" onclick="switchView('search')">🔎  Search</button>
+      <button class="tab-btn ${currentView==='dashboard' ?'active':''}" onclick="switchView('dashboard')">📊  Dashboard</button>
+      <button class="tab-btn ${currentView==='duplicates'?'active':''}" onclick="switchView('duplicates')">⚠️  Duplicates</button>
+    </nav>`;
+}
+
+function switchView(view) {
+  currentView = view;
+  renderView();
+}
+
+function renderView() {
+  renderHeader();
+  renderTabNav();
+  if      (currentView === 'search')     renderSearchPage();
+  else if (currentView === 'dashboard')  renderDashboard();
+  else if (currentView === 'duplicates') renderDuplicates();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER — SEARCH
+// ═══════════════════════════════════════════════════════════════
+
+function renderSearchPage() {
+  document.getElementById('root').innerHTML = `
+    <div class="page">
+      <div class="search-card">
+        <div class="search-label">Search respondents</div>
+        <input
+          type="text" class="search-input" id="search-input"
+          placeholder="Type a name or email address…"
+          oninput="renderResults(this.value)"
+          autocomplete="off" autofocus
+        />
+        <div class="data-stats" id="data-stats">
+          ${loaded
+            ? `<strong>${datasets.reduce((s,d)=>s+d.records.length,0).toLocaleString()}</strong> respondents loaded across ${datasets.length} sheets`
+            : '<span class="spinner"></span> Loading data from SharePoint…'}
+        </div>
+      </div>
+      <div id="results-area">
+        ${loaded ? '<div class="state-msg">Start typing to search across all three sheets</div>'
+                 : '<div class="loading-full"><span class="spinner"></span> Downloading and reading sheets…</div>'}
+      </div>
+    </div>`;
+}
+
+function renderResults(query) {
+  if (!loaded) return;
+  const area = document.getElementById('results-area');
+  if (!area) return;
+  if (!query.trim()) {
+    area.innerHTML = `<div class="state-msg">Start typing to search across all three sheets</div>`;
+    return;
+  }
+  const res   = search(query);
+  const total = res.reduce((s, d) => s + d.results.length, 0);
+  if (total === 0) {
+    area.innerHTML = `<div class="state-msg">No results found for "<strong>${esc(query)}</strong>"</div>`;
+    return;
+  }
+  area.innerHTML = `<div class="results-grid">${res.map(renderSheetCol).join('')}</div>`;
+}
+
+function renderSheetCol(sheet) {
+  const { label, dotClass, results, error, loading, legend } = sheet;
+  return `
+    <div class="sheet-col">
+      <div class="sheet-header">
+        <div class="sheet-name">
+          <span class="sheet-dot ${esc(dotClass)}"></span>${esc(label)}
+        </div>
+        <span class="sheet-count">
+          ${loading ? '<span class="spinner" style="width:12px;height:12px"></span>'
+            : error   ? 'error'
+            : results.length + ' result' + (results.length !== 1 ? 's' : '')}
+        </span>
+      </div>
+      ${legend ? renderLegend(legend) : ''}
+      ${error
+        ? `<div class="error-msg">${esc(error)}</div>`
+        : !results || results.length === 0
+          ? `<div class="state-msg" style="padding:16px 0;font-size:13px">No matches</div>`
+          : results.map(renderResultCard).join('')}
+    </div>`;
+}
+
+function renderLegend(items) {
+  return `
+    <div class="legend">
+      ${items.map(item => `
+        <div class="legend-item">
+          <div class="legend-swatch" style="background:${item.color ? esc(item.color) : '#fff'};${!item.color?'border:1px solid #ccc':''}"></div>
+          <span>${esc(item.label)}</span>
+        </div>`).join('')}
+    </div>`;
+}
+
+function renderResultCard(r) {
+  const name    = [r.firstName, r.lastName].filter(Boolean).join(' ');
+  const stripe  = r.rowColor || '#e2e8f0';
+  const comment = r.comment && r.comment.toLowerCase() !== 'none' ? r.comment : null;
+  const fields = [
+    { label: 'Amount (USD)',  value: r.amountUSD    ? '$' + r.amountUSD : null, cls: 'amount' },
+    { label: 'Native amount', value: r.amountNative || null },
+    { label: 'Date',          value: r.date         ? formatEntryDate(r.date) : null },
+    { label: 'Project',       value: r.project      || r.client || null },
+    { label: 'Country',       value: r.country      || null },
+    { label: 'Designation',   value: r.designation  || null },
+  ].filter(f => f.value);
+  return `
+    <div class="result-card">
+      <div class="rc-stripe" style="background:${esc(stripe)}"></div>
+      <div class="rc-body">
+        <div class="rc-name">${esc(name) || '—'}</div>
+        <div class="rc-email">${esc(r.email) || 'No email on record'}</div>
+        <div class="rc-fields">
+          ${fields.map(f => `
+            <div>
+              <div class="rc-field-label">${esc(f.label)}</div>
+              <div class="rc-field-value ${f.cls||''}">${esc(f.value)}</div>
+            </div>`).join('')}
+        </div>
+        ${comment ? `<div class="rc-comment">${esc(comment)}</div>` : ''}
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER — DASHBOARD
+// ═══════════════════════════════════════════════════════════════
+
+function renderDashboard() {
+  const { sheetTotals, monthly, top10 } = getDashboardData();
+  const total = sheetTotals.reduce((s, d) => s + d.count, 0);
+
+  document.getElementById('root').innerHTML = `
+    <div class="page">
+
+      <!-- Top row: doughnut + monthly bar -->
+      <div class="dash-row">
+
+        <!-- Team split doughnut -->
+        <div class="dash-card">
+          <div class="dash-title">🥧 Entries by Team</div>
+          <div class="dash-total">
+            <strong>${total.toLocaleString()}</strong> total entries
+            <span style="margin-left:16px;font-size:12px">
+              ${sheetTotals.map(s => `
+                <span class="sheet-dot ${esc(s.dotClass)}" style="display:inline-block;width:8px;height:8px;border-radius:50%;vertical-align:middle;margin-right:3px"></span>
+                ${esc(s.label)}: <strong>${s.count}</strong>
+              `).join('<span style="margin:0 8px;color:#ccc">|</span>')}
+            </span>
+          </div>
+          <div class="chart-wrap"><canvas id="chart-pie"></canvas></div>
+        </div>
+
+        <!-- Monthly USD bar -->
+        <div class="dash-card">
+          <div class="dash-title">💰 Monthly Honorariums (USD)</div>
+          ${monthly.length === 0
+            ? '<div class="state-msg" style="padding:60px 0">Date data not available</div>'
+            : '<div class="chart-wrap"><canvas id="chart-bar"></canvas></div>'}
+        </div>
+      </div>
+
+      <!-- Top 10 table -->
+      <div class="dash-card-full">
+        <div class="dash-title">🏆 Top 10 Most Participating Individuals</div>
+        ${top10.length === 0
+          ? '<div class="state-msg">No data loaded yet</div>'
+          : `<table class="top10-table">
+              <thead>
+                <tr>
+                  <th style="width:40px">#</th>
+                  <th>Name</th>
+                  <th>Designation</th>
+                  <th>Study Type</th>
+                  <th>Email</th>
+                  <th>Country</th>
+                  <th style="text-align:center">Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${top10.map((item, i) => `
+                  <tr>
+                    <td>
+                      <span class="rank-badge ${i===0?'gold':i===1?'silver':i===2?'bronze':''}">${i+1}</span>
+                    </td>
+                    <td><strong>${esc([item.best.firstName, item.best.lastName].filter(Boolean).join(' ')) || '—'}</strong></td>
+                    <td>${esc(item.best.designation) || '—'}</td>
+                    <td>${esc(item.best.studyType)   || '—'}</td>
+                    <td style="color:#1e6fb0">${esc(item.best.email) || '—'}</td>
+                    <td>${esc(item.best.country)     || '—'}</td>
+                    <td style="text-align:center"><span class="count-pill">${item.count}×</span></td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>`}
+      </div>
+    </div>`;
+
+  // Doughnut
+  destroyChart('pie');
+  if (total > 0) {
+    const ctx = document.getElementById('chart-pie')?.getContext('2d');
+    if (ctx) charts['pie'] = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: sheetTotals.map(s => s.label),
+        datasets: [{
+          data: sheetTotals.map(s => s.count),
+          backgroundColor: ['#1e6fb0','#2e9e6e','#8b5cf6'],
+          borderWidth: 3, borderColor: '#fff'
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        cutout: '60%',
+        plugins: {
+          legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 16 } },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.label}: ${ctx.parsed.toLocaleString()} (${Math.round(ctx.parsed/total*100)}%)`
+            }
+          }
+        }
+      }
+    });
+  }
+
+  // Bar
+  destroyChart('bar');
+  if (monthly.length > 0) {
+    const ctx = document.getElementById('chart-bar')?.getContext('2d');
+    if (ctx) charts['bar'] = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: monthly.map(m => m.label),
+        datasets: [{
+          label: 'USD',
+          data: monthly.map(m => m.usd),
+          backgroundColor: '#1e6fb0',
+          borderRadius: 5, borderSkipped: false
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { font: { size: 11 } } },
+          y: {
+            ticks: {
+              callback: v => '$' + (v >= 1000 ? (v/1000).toFixed(0) + 'k' : v)
+            }
+          }
+        }
+      }
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER — DUPLICATES
+// ═══════════════════════════════════════════════════════════════
+
+function setDupFilter(f) { dupFilter = f; renderDuplicates(); }
+
+function renderDuplicates() {
+  if (!loaded) {
+    document.getElementById('root').innerHTML = `
+      <div class="page">
+        <div class="loading-full"><span class="spinner"></span> Still loading sheets…</div>
+      </div>`;
+    return;
+  }
+
+  const all     = findDuplicates();
+  const within  = all.filter(g => !g.crossSheet);
+  const cross   = all.filter(g =>  g.crossSheet);
+  const shown   = dupFilter === 'within' ? within
+                : dupFilter === 'cross'  ? cross
+                : all;
+  const totalDupEntries = all.reduce((s, g) => s + g.entries.length, 0);
+
+  document.getElementById('root').innerHTML = `
+    <div class="page">
+
+      <!-- Summary stats -->
+      <div class="dup-summary">
+        <div class="dup-stat">
+          <div class="dup-stat-value">${all.length}</div>
+          <div class="dup-stat-label">Duplicate groups</div>
+        </div>
+        <div class="dup-stat">
+          <div class="dup-stat-value">${totalDupEntries}</div>
+          <div class="dup-stat-label">Duplicate entries total</div>
+        </div>
+        <div class="dup-stat">
+          <div class="dup-stat-value">${within.length}</div>
+          <div class="dup-stat-label">Within-sheet</div>
+        </div>
+        <div class="dup-stat">
+          <div class="dup-stat-value">${cross.length}</div>
+          <div class="dup-stat-label">Cross-sheet</div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="dup-filters">
+        <button class="dup-filter-btn ${dupFilter==='all'   ?'active':''}" onclick="setDupFilter('all')">All (${all.length})</button>
+        <button class="dup-filter-btn ${dupFilter==='within'?'active':''}" onclick="setDupFilter('within')">Within-sheet (${within.length})</button>
+        <button class="dup-filter-btn ${dupFilter==='cross' ?'active':''}" onclick="setDupFilter('cross')">Cross-sheet (${cross.length})</button>
+      </div>
+
+      <!-- Groups -->
+      ${shown.length === 0
+        ? `<div class="state-msg">No duplicates found in this category 🎉</div>`
+        : shown.map(renderDupGroup).join('')}
+    </div>`;
+}
+
+function renderDupGroup(group) {
+  return `
+    <div class="dup-group">
+      <div class="dup-group-header">
+        <div>
+          <div class="dup-group-name">${esc(group.name) || '(No name)'}</div>
+          <div class="dup-group-email">${esc(group.email)}</div>
+          ${group.crossSheet
+            ? `<div style="font-size:11px;color:#888;margin-top:3px">Appears in: ${group.sheets.map(esc).join(', ')}</div>`
+            : ''}
+        </div>
+        <span class="dup-badge ${group.crossSheet?'cross':'within'}">
+          ${group.crossSheet ? '🔀 Cross-sheet' : '📋 Within-sheet'} · ${group.entries.length} entries
+        </span>
+      </div>
+      <div class="dup-entries">
+        ${group.entries.map(r => `
+          <div class="dup-entry">
+            <div class="dup-entry-stripe" style="background:${esc(r.rowColor||'#e2e8f0')}"></div>
+            <div class="dup-entry-body">
+              <div class="dup-entry-sheet">
+                <span class="sheet-dot ${esc(r.dotClass)}" style="display:inline-block;width:7px;height:7px;border-radius:50%"></span>
+                ${esc(r.sheetLabel)}
+              </div>
+              ${r.date        ? `<div class="dup-entry-row"><strong>Date:</strong> ${esc(formatEntryDate(r.date))}</div>` : ''}
+              ${r.amountUSD   ? `<div class="dup-entry-row"><strong>USD:</strong> $${esc(r.amountUSD)}</div>` : ''}
+              ${r.project||r.client ? `<div class="dup-entry-row"><strong>Project:</strong> ${esc(r.project||r.client)}</div>` : ''}
+              ${r.code        ? `<div class="dup-entry-row"><strong>Code:</strong> ${esc(r.code)}</div>` : ''}
+              ${r.designation ? `<div class="dup-entry-row" style="color:#888">${esc(r.designation)}</div>` : ''}
+            </div>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SHARED RENDER HELPERS
 // ═══════════════════════════════════════════════════════════════
 
 function esc(s) {
@@ -567,6 +1103,7 @@ function showError(msg) {
 
 function renderLogin() {
   renderHeader();
+  document.getElementById('nav-area').innerHTML = '';
   document.getElementById('root').innerHTML = `
     <div class="login-wrap">
       <div class="login-card">
@@ -574,119 +1111,6 @@ function renderLogin() {
         <h2>Honorarium Lookup</h2>
         <p>Search respondent honorariums across Team Aamir, Team Ajay and EM Gurgaon sheets. Sign in with your GRG Microsoft account to continue.</p>
         <button class="btn-login" onclick="login()">⊞&nbsp;&nbsp;Sign in with Microsoft</button>
-      </div>
-    </div>`;
-}
-
-function renderSearchPage() {
-  renderHeader();
-  document.getElementById('root').innerHTML = `
-    <div class="page">
-      <div class="search-card">
-        <div class="search-label">Search respondents</div>
-        <input
-          type="text" class="search-input" id="search-input"
-          placeholder="Type a name or email address…"
-          oninput="renderResults(this.value)"
-          autocomplete="off" autofocus
-        />
-        <div class="data-stats" id="data-stats">
-          <span class="spinner"></span> Loading data from SharePoint…
-        </div>
-      </div>
-      <div id="results-area">
-        <div class="loading-full"><span class="spinner"></span> Downloading and reading sheets…</div>
-      </div>
-    </div>`;
-}
-
-function renderResults(query) {
-  if (!loaded) return;
-  const area = document.getElementById('results-area');
-  if (!area) return;
-
-  if (!query.trim()) {
-    area.innerHTML = `<div class="state-msg">Start typing to search across all three sheets</div>`;
-    return;
-  }
-
-  const res   = search(query);
-  const total = res.reduce((s, d) => s + d.results.length, 0);
-
-  if (total === 0) {
-    area.innerHTML = `<div class="state-msg">No results found for "<strong>${esc(query)}</strong>"</div>`;
-    return;
-  }
-
-  area.innerHTML = `<div class="results-grid">${res.map(renderSheetCol).join('')}</div>`;
-}
-
-function renderSheetCol(sheet) {
-  const { label, dotClass, results, error, loading, legend } = sheet;
-
-  return `
-    <div class="sheet-col">
-      <div class="sheet-header">
-        <div class="sheet-name">
-          <span class="sheet-dot ${esc(dotClass)}"></span>${esc(label)}
-        </div>
-        <span class="sheet-count">
-          ${loading ? '<span class="spinner" style="width:12px;height:12px"></span>'
-            : error ? 'error'
-            : (results.length) + ' result' + (results.length !== 1 ? 's' : '')}
-        </span>
-      </div>
-
-      ${legend ? renderLegend(legend) : ''}
-
-      ${error
-        ? `<div class="error-msg">${esc(error)}</div>`
-        : !results || results.length === 0
-          ? `<div class="state-msg" style="padding:16px 0;font-size:13px">No matches</div>`
-          : results.map(renderResultCard).join('')
-      }
-    </div>`;
-}
-
-function renderLegend(items) {
-  return `
-    <div class="legend">
-      ${items.map(item => `
-        <div class="legend-item">
-          <div class="legend-swatch" style="background:${item.color ? esc(item.color) : '#fff'};${!item.color ? 'border:1px solid #ccc' : ''}"></div>
-          <span>${esc(item.label)}</span>
-        </div>`).join('')}
-    </div>`;
-}
-
-function renderResultCard(r) {
-  const name    = [r.firstName, r.lastName].filter(Boolean).join(' ');
-  const stripe  = r.rowColor || '#e2e8f0';
-  const comment = r.comment && r.comment.toLowerCase() !== 'none' ? r.comment : null;
-
-  const fields = [
-    { label: 'Amount (USD)',   value: r.amountUSD    ? '$' + r.amountUSD : null, cls: 'amount' },
-    { label: 'Native amount',  value: r.amountNative || null },
-    { label: 'Date',           value: r.date         || null },
-    { label: 'Project',        value: r.project      || r.client || null },
-    { label: 'Country',        value: r.country      || null },
-    { label: 'Designation',    value: r.designation  || null },
-  ].filter(f => f.value);
-
-  return `
-    <div class="result-card">
-      <div class="rc-stripe" style="background:${esc(stripe)}"></div>
-      <div class="rc-body">
-        <div class="rc-name">${esc(name) || '—'}</div>
-        <div class="rc-email">${esc(r.email) || 'No email on record'}</div>
-        <div class="rc-fields">
-          ${fields.map(f => `
-            <div>
-              <div class="rc-field-label">${esc(f.label)}</div>
-              <div class="rc-field-value ${f.cls || ''}">${esc(f.value)}</div>
-            </div>`).join('')}
-        </div>
-        ${comment ? `<div class="rc-comment">${esc(comment)}</div>` : ''}
       </div>
     </div>`;
 }
@@ -701,6 +1125,7 @@ function isConfigured() {
 
 function renderSetupRequired() {
   document.getElementById('header-right').innerHTML = '';
+  document.getElementById('nav-area').innerHTML     = '';
   document.getElementById('root').innerHTML = `
     <div class="login-wrap">
       <div class="login-card" style="max-width:500px">
@@ -708,39 +1133,25 @@ function renderSetupRequired() {
         <h2 style="margin-bottom:12px">One-time setup needed</h2>
         <p style="margin-bottom:20px">
           Before the app works, you need to register it in Azure AD and paste two IDs into <code>index.html</code>.
-          This takes about 10 minutes and only needs to be done once.
         </p>
         <div style="background:#f0f6ff;border-radius:8px;padding:16px;text-align:left;font-size:13px;color:#333;line-height:1.8">
           <strong>Quick steps:</strong><br>
           1. Go to <a href="https://portal.azure.com" target="_blank" style="color:#1e6fb0">portal.azure.com</a> → App registrations → New registration<br>
           2. Name it <em>Kyrios Honorarium Lookup</em>, register<br>
           3. Copy <strong>Application (client) ID</strong> and <strong>Directory (tenant) ID</strong><br>
-          4. Open <code>index.html</code> in a text editor<br>
-          5. Replace <code>YOUR_CLIENT_ID_HERE</code> and <code>YOUR_TENANT_ID_HERE</code><br>
-          6. Add API permission: <strong>Files.Read</strong> (user consent — no admin needed)<br>
-          7. Deploy to Vercel and add the URL as a redirect URI
+          4. Open <code>index.html</code> and replace the placeholder IDs<br>
+          5. Add API permissions: <strong>Files.Read</strong> + <strong>Sites.Read.All</strong>
         </div>
-        <p style="margin-top:16px;font-size:12px;color:#999">
-          See <strong>SETUP.md</strong> for the full step-by-step guide.
-        </p>
       </div>
     </div>`;
 }
 
 async function boot() {
-  // Show setup screen immediately if config not filled in
-  if (!isConfigured()) {
-    renderSetupRequired();
-    return;
-  }
-
+  if (!isConfigured()) { renderSetupRequired(); return; }
   try {
-    // Guard: MSAL script may have failed to load
     if (typeof msal === 'undefined') {
       throw new Error('Microsoft authentication library (MSAL) failed to load. Please check your internet connection and try refreshing the page.');
     }
-
-    // Create the MSAL client inside the try/catch so constructor errors are visible
     msalApp = new msal.PublicClientApplication({
       auth: {
         clientId:    CFG.clientId,
@@ -749,18 +1160,18 @@ async function boot() {
       },
       cache: { cacheLocation: "sessionStorage", storeAuthStateInCookie: false }
     });
-
     await msalApp.initialize();
     await msalApp.handleRedirectPromise().catch(() => {});
 
     if (currentUser()) {
-      renderSearchPage();
+      renderView();
       loadAllSheets();
     } else {
       renderLogin();
     }
   } catch (e) {
     document.getElementById('header-right').innerHTML = '';
+    document.getElementById('nav-area').innerHTML     = '';
     document.getElementById('root').innerHTML = `
       <div class="login-wrap">
         <div class="login-card">
