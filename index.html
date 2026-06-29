@@ -1301,6 +1301,46 @@ function renderDashboard() {
 
 function setDupFilter(f) { dupFilter = f; renderDuplicates(); }
 
+function exportDuplicates() {
+  const { trueDups, suspicious } = findDuplicates();
+
+  const rows = [
+    ['Flag Type','Name','Email','Project Code','Sheet','Date','Amount USD','Designation','Country','Recruiter Name','Comment']
+  ];
+
+  const addGroup = (group, type) => {
+    group.entries.forEach(r => {
+      rows.push([
+        type,
+        [r.firstName, r.lastName].filter(Boolean).join(' '),
+        r.email          || '',
+        group.code       || '',
+        r.sheetLabel     || '',
+        r.date           ? formatEntryDate(r.date) : '',
+        r.amountUSD      || '',
+        r.designation    || '',
+        r.country        || '',
+        r.recruiter      || '',
+        r.comment        || ''
+      ].map(v => `"${String(v).replace(/"/g, '""')}"`));
+    });
+  };
+
+  trueDups.forEach(g   => addGroup(g, 'True Duplicate'));
+  suspicious.forEach(g => addGroup(g, 'Suspicious'));
+
+  const csv  = rows.map(r => r.join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `kyrios-duplicates-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 function renderDuplicates() {
   if (!loaded) {
     document.getElementById('root').innerHTML = `
@@ -1339,11 +1379,20 @@ function renderDuplicates() {
         </div>
       </div>
 
-      <!-- Filters -->
-      <div class="dup-filters">
-        <button class="dup-filter-btn ${dupFilter==='all'       ?'active':''}" onclick="setDupFilter('all')">All (${trueDups.length + suspicious.length})</button>
-        <button class="dup-filter-btn ${dupFilter==='true'      ?'active':''}" onclick="setDupFilter('true')" style="${dupFilter==='true'?'':'border-color:#dc2626;color:#dc2626'}">⛔ True duplicates (${trueDups.length})</button>
-        <button class="dup-filter-btn ${dupFilter==='suspicious'?'active':''}" onclick="setDupFilter('suspicious')" style="${dupFilter==='suspicious'?'':'border-color:#d97706;color:#d97706'}">⚠️ Suspicious (${suspicious.length})</button>
+      <!-- Filters + Export -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px">
+        <div class="dup-filters" style="margin-bottom:0">
+          <button class="dup-filter-btn ${dupFilter==='all'       ?'active':''}" onclick="setDupFilter('all')">All (${trueDups.length + suspicious.length})</button>
+          <button class="dup-filter-btn ${dupFilter==='true'      ?'active':''}" onclick="setDupFilter('true')" style="${dupFilter==='true'?'':'border-color:#dc2626;color:#dc2626'}">⛔ True duplicates (${trueDups.length})</button>
+          <button class="dup-filter-btn ${dupFilter==='suspicious'?'active':''}" onclick="setDupFilter('suspicious')" style="${dupFilter==='suspicious'?'':'border-color:#d97706;color:#d97706'}">⚠️ Suspicious (${suspicious.length})</button>
+        </div>
+        ${(trueDups.length + suspicious.length) > 0 ? `
+          <button onclick="exportDuplicates()" style="
+            background:#0f2d4a;color:#fff;border:none;padding:8px 18px;
+            border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;
+            display:flex;align-items:center;gap:6px;white-space:nowrap
+          ">⬇️ Export CSV</button>
+        ` : ''}
       </div>
 
       <!-- True duplicates section -->
