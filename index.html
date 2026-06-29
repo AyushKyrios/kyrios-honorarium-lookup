@@ -768,6 +768,29 @@ function getDashboardData() {
     });
   });
 
+  // Top 20 specialities by unique HCP count
+  const bySpec = {};
+  datasets.forEach(ds => {
+    ds.records.forEach(r => {
+      const spec  = (r.designation || '').trim();
+      if (!spec) return;
+      const email = (r.email || '').toLowerCase().trim()
+                    || `${r.firstName||''} ${r.lastName||''}`.trim().toLowerCase();
+      if (!bySpec[spec]) bySpec[spec] = { emails: new Set(), total: 0 };
+      if (email) bySpec[spec].emails.add(email);
+      bySpec[spec].total++;
+    });
+  });
+  const top20Specialities = Object.entries(bySpec)
+    .map(([name, d]) => ({
+      name,
+      uniqueHCPs:   d.emails.size,
+      totalEntries: d.total,
+      avgPerHCP:    d.emails.size > 0 ? (d.total / d.emails.size).toFixed(1) : '—'
+    }))
+    .sort((a, b) => b.uniqueHCPs - a.uniqueHCPs)
+    .slice(0, 20);
+
   // Top 100 economical + active: most participations, then lowest avg USD
   const top100 = Object.entries(byEmail).map(([email, data]) => ({
     email,
@@ -781,7 +804,7 @@ function getDashboardData() {
   return {
     sheetTotals, monthly, teamAvgMonths, avgTrend,
     loyalty, unprocessedUSD, unprocessedCount,
-    uniqueHCPs, totalUSD, top100
+    uniqueHCPs, totalUSD, top100, top20Specialities
   };
 }
 
@@ -957,7 +980,7 @@ function renderDashboard() {
   const {
     sheetTotals, monthly, teamAvgMonths, avgTrend,
     loyalty, unprocessedUSD, unprocessedCount,
-    uniqueHCPs, totalUSD, top100
+    uniqueHCPs, totalUSD, top100, top20Specialities
   } = getDashboardData();
   const totalEntries = sheetTotals.reduce((s, d) => s + d.count, 0);
   const avgPerEntry  = totalEntries > 0 ? (totalUSD / totalEntries).toFixed(0) : 0;
@@ -1030,7 +1053,49 @@ function renderDashboard() {
         </div>
       </div>
 
-      <!-- Row 5: Top 100 table -->
+      <!-- Row 5: Top 20 Specialities -->
+      <div class="dash-row" style="align-items:start">
+        <!-- Horizontal bar chart -->
+        <div class="dash-card">
+          <div class="dash-title">🩺 Top 20 Specialities by Unique HCPs</div>
+          <div class="dash-subtitle">Ranked by number of distinct respondents across all 3 sheets</div>
+          ${top20Specialities.length === 0
+            ? '<div class="state-msg">No designation data found</div>'
+            : '<div class="chart-wrap" style="height:480px"><canvas id="chart-spec"></canvas></div>'}
+        </div>
+        <!-- Detail table -->
+        <div class="dash-card">
+          <div class="dash-title">📋 Speciality Breakdown</div>
+          <div class="dash-subtitle">Unique HCPs · Total entries · Avg participations per HCP</div>
+          ${top20Specialities.length === 0
+            ? '<div class="state-msg">No designation data found</div>'
+            : `<div style="overflow-y:auto;max-height:480px">
+                <table class="top10-table">
+                  <thead style="position:sticky;top:0;background:#fff;z-index:1">
+                    <tr>
+                      <th style="width:30px">#</th>
+                      <th>Speciality</th>
+                      <th style="text-align:center">Unique HCPs</th>
+                      <th style="text-align:center">Total Entries</th>
+                      <th style="text-align:center">Avg / HCP</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${top20Specialities.map((s, i) => `
+                      <tr>
+                        <td><span class="rank-badge ${i===0?'gold':i===1?'silver':i===2?'bronze':''}">${i+1}</span></td>
+                        <td><strong>${esc(s.name)}</strong></td>
+                        <td style="text-align:center"><span class="count-pill">${s.uniqueHCPs}</span></td>
+                        <td style="text-align:center;color:#555">${s.totalEntries}</td>
+                        <td style="text-align:center;color:#1a7a4a;font-weight:600">${s.avgPerHCP}×</td>
+                      </tr>`).join('')}
+                  </tbody>
+                </table>
+              </div>`}
+        </div>
+      </div>
+
+      <!-- Row 6: Top 100 table -->
       <div class="dash-card-full">
         <div class="dash-title">🏅 Top 100 Most Economical &amp; Active HCPs</div>
         <div class="dash-subtitle">Sorted by participation count (most active first), then by lowest average honorarium among ties</div>
@@ -1070,7 +1135,7 @@ function renderDashboard() {
     </div>`;
 
   // Destroy old charts
-  ['pie','bar','teamavg','loyalty','avgtrend'].forEach(id => destroyChart(id));
+  ['pie','bar','teamavg','loyalty','avgtrend','spec'].forEach(id => destroyChart(id));
 
   // 1. Team doughnut
   if (totalEntries > 0) {
@@ -1163,7 +1228,47 @@ function renderDashboard() {
     }
   }
 
-  // 5. Avg USD trend line
+  // 5. Top 20 Specialities horizontal bar
+  if (top20Specialities.length > 0) {
+    const ctx = document.getElementById('chart-spec')?.getContext('2d');
+    if (ctx) {
+      // Colour gradient: deeper blue for top, lighter for lower ranks
+      const colors = top20Specialities.map((_, i) =>
+        `hsl(214, ${80 - i * 2}%, ${38 + i * 1.5}%)`
+      );
+      charts['spec'] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: top20Specialities.map(s => s.name),
+          datasets: [{
+            label: 'Unique HCPs',
+            data:  top20Specialities.map(s => s.uniqueHCPs),
+            backgroundColor: colors,
+            borderRadius: 4,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: c => ` ${c.parsed.x} unique HCPs · ${top20Specialities[c.dataIndex].totalEntries} entries`
+              }
+            }
+          },
+          scales: {
+            x: { ticks: { stepSize: 1 }, title: { display: true, text: 'Unique HCPs', font: { size: 11 } } },
+            y: { ticks: { font: { size: 11 } } }
+          }
+        }
+      });
+    }
+  }
+
+  // 6. Avg USD trend line
   if (avgTrend.length > 0) {
     const ctx = document.getElementById('chart-avgtrend')?.getContext('2d');
     if (ctx) charts['avgtrend'] = new Chart(ctx, {
