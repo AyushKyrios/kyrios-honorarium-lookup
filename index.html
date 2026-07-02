@@ -791,6 +791,21 @@ function getDashboardData() {
     .sort((a, b) => b.uniqueHCPs - a.uniqueHCPs)
     .slice(0, 20);
 
+  // Top 20 countries by entry count
+  const byCountry = {};
+  datasets.forEach(ds => {
+    ds.records.forEach(r => {
+      const country = (r.country || '').trim();
+      if (!country) return;
+      if (!byCountry[country]) byCountry[country] = 0;
+      byCountry[country]++;
+    });
+  });
+  const top20Countries = Object.entries(byCountry)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 20);
+
   // Top 100 economical + active: most participations, then lowest avg USD
   const top100 = Object.entries(byEmail).map(([email, data]) => ({
     email,
@@ -804,7 +819,7 @@ function getDashboardData() {
   return {
     sheetTotals, monthly, teamAvgMonths, avgTrend,
     loyalty, unprocessedUSD, unprocessedCount,
-    uniqueHCPs, totalUSD, top100, top20Specialities
+    uniqueHCPs, totalUSD, top100, top20Specialities, top20Countries
   };
 }
 
@@ -953,6 +968,7 @@ function renderResultCard(r) {
     { label: 'Project',       value: r.project      || r.client || null },
     { label: 'Country',       value: r.country      || null },
     { label: 'Designation',   value: r.designation  || null },
+    { label: 'Recruiter',     value: r.recruiter    || null },
   ].filter(f => f.value);
   return `
     <div class="result-card">
@@ -980,7 +996,7 @@ function renderDashboard() {
   const {
     sheetTotals, monthly, teamAvgMonths, avgTrend,
     loyalty, unprocessedUSD, unprocessedCount,
-    uniqueHCPs, totalUSD, top100, top20Specialities
+    uniqueHCPs, totalUSD, top100, top20Specialities, top20Countries
   } = getDashboardData();
   const totalEntries = sheetTotals.reduce((s, d) => s + d.count, 0);
   const avgPerEntry  = totalEntries > 0 ? (totalUSD / totalEntries).toFixed(0) : 0;
@@ -1095,7 +1111,45 @@ function renderDashboard() {
         </div>
       </div>
 
-      <!-- Row 6: Top 100 table -->
+      <!-- Row 6: Country Distribution -->
+      <div class="dash-row" style="align-items:start;margin-bottom:20px">
+        <div class="dash-card">
+          <div class="dash-title">🌍 Top 20 Countries by Entries</div>
+          <div class="dash-subtitle">Countries with the highest number of honorarium entries across all 3 sheets</div>
+          ${top20Countries.length === 0
+            ? '<div class="state-msg">No country data found</div>'
+            : '<div class="chart-wrap" style="height:480px"><canvas id="chart-countries"></canvas></div>'}
+        </div>
+        <div class="dash-card">
+          <div class="dash-title">📋 Country Breakdown</div>
+          <div class="dash-subtitle">Entry count and share of total per country</div>
+          ${top20Countries.length === 0
+            ? '<div class="state-msg">No country data found</div>'
+            : `<div style="overflow-y:auto;max-height:480px">
+                <table class="top10-table">
+                  <thead style="position:sticky;top:0;background:#fff;z-index:1">
+                    <tr>
+                      <th style="width:30px">#</th>
+                      <th>Country</th>
+                      <th style="text-align:center">Entries</th>
+                      <th style="text-align:center">% of Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${top20Countries.map((c, i) => `
+                      <tr>
+                        <td><span class="rank-badge ${i===0?'gold':i===1?'silver':i===2?'bronze':''}">${i+1}</span></td>
+                        <td><strong>${esc(c.name)}</strong></td>
+                        <td style="text-align:center"><span class="count-pill">${c.count}</span></td>
+                        <td style="text-align:center;color:#555">${totalEntries > 0 ? (c.count/totalEntries*100).toFixed(1) : '0'}%</td>
+                      </tr>`).join('')}
+                  </tbody>
+                </table>
+              </div>`}
+        </div>
+      </div>
+
+      <!-- Row 7: Top 100 table -->
       <div class="dash-card-full">
         <div class="dash-title">🏅 Top 100 Most Economical &amp; Active HCPs</div>
         <div class="dash-subtitle">Sorted by participation count (most active first), then by lowest average honorarium among ties</div>
@@ -1135,7 +1189,7 @@ function renderDashboard() {
     </div>`;
 
   // Destroy old charts
-  ['pie','bar','teamavg','loyalty','avgtrend','spec'].forEach(id => destroyChart(id));
+  ['pie','bar','teamavg','loyalty','avgtrend','spec','countries'].forEach(id => destroyChart(id));
 
   // 1. Team doughnut
   if (totalEntries > 0) {
@@ -1268,7 +1322,46 @@ function renderDashboard() {
     }
   }
 
-  // 6. Avg USD trend line
+  // 6. Top 20 Countries horizontal bar
+  if (top20Countries.length > 0) {
+    const ctx = document.getElementById('chart-countries')?.getContext('2d');
+    if (ctx) {
+      const colors = top20Countries.map((_, i) =>
+        `hsl(152, ${72 - i * 2}%, ${32 + i * 1.5}%)`
+      );
+      charts['countries'] = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: top20Countries.map(c => c.name),
+          datasets: [{
+            label: 'Entries',
+            data:  top20Countries.map(c => c.count),
+            backgroundColor: colors,
+            borderRadius: 4,
+            borderSkipped: false
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: c => ` ${c.parsed.x} entries (${totalEntries > 0 ? (c.parsed.x / totalEntries * 100).toFixed(1) : '0'}%)`
+              }
+            }
+          },
+          scales: {
+            x: { ticks: { stepSize: 1 }, title: { display: true, text: 'Entries', font: { size: 11 } } },
+            y: { ticks: { font: { size: 11 } } }
+          }
+        }
+      });
+    }
+  }
+
+  // 7. Avg USD trend line
   if (avgTrend.length > 0) {
     const ctx = document.getElementById('chart-avgtrend')?.getContext('2d');
     if (ctx) charts['avgtrend'] = new Chart(ctx, {
@@ -1305,7 +1398,7 @@ function exportDuplicates() {
   const { trueDups, suspicious } = findDuplicates();
 
   const rows = [
-    ['Flag Type','Name','Email','Project Code','Sheet','Date','Amount USD','Designation','Country','Recruiter Name','Comment']
+    ['Flag Type','Name','Email','Project Code','Study / Project Name','Sheet','Date','Amount USD','Amount (Native Currency)','Designation','Country','Recruiter Name','Comment']
   ];
 
   const addGroup = (group, type) => {
@@ -1313,15 +1406,17 @@ function exportDuplicates() {
       rows.push([
         type,
         [r.firstName, r.lastName].filter(Boolean).join(' '),
-        r.email          || '',
-        group.code       || '',
-        r.sheetLabel     || '',
-        r.date           ? formatEntryDate(r.date) : '',
-        r.amountUSD      || '',
-        r.designation    || '',
-        r.country        || '',
-        r.recruiter      || '',
-        r.comment        || ''
+        r.email                  || '',
+        group.code               || '',
+        r.project || r.client    || '',
+        r.sheetLabel             || '',
+        r.date                   ? formatEntryDate(r.date) : '',
+        r.amountUSD              || '',
+        r.amountNative           || '',
+        r.designation            || '',
+        r.country                || '',
+        r.recruiter              || '',
+        r.comment                || ''
       ].map(v => `"${String(v).replace(/"/g, '""')}"`));
     });
   };
