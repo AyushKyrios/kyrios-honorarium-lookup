@@ -1010,6 +1010,7 @@ function renderResultCard(r) {
     { label: 'Amount (USD)',  value: r.amountUSD    ? '$' + r.amountUSD : null, cls: 'amount' },
     { label: 'Native amount', value: r.amountNative || null },
     { label: 'Date',          value: r.date         ? formatEntryDate(r.date) : null },
+    { label: 'Project Code',  value: r.code         || null },
     { label: 'Project',       value: r.project      || r.client || null },
     { label: 'Country',       value: r.country      || null },
     { label: 'Designation',   value: r.designation  || null },
