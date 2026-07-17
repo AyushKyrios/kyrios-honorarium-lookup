@@ -549,6 +549,8 @@ function buildRecords(rawRows) {
       rec[field] = ci < values.length ? String(values[ci] || '').trim() : '';
     });
     if (!rec.firstName && !rec.email) continue;
+    // Normalise country spelling variants
+    if (rec.country) rec.country = normalizeCountry(rec.country);
     records.push(rec);
   }
   return records;
@@ -595,6 +597,47 @@ function excelDateToJS(val) {
   return isNaN(d.getTime()) ? null : d;
 }
 
+// ── Country normalisation ────────────────────────────────────────
+// Collapses common spelling variants so analytics group correctly.
+const COUNTRY_MAP = {
+  // USA
+  'united states':              'USA',
+  'united states of america':   'USA',
+  'us':                         'USA',
+  'usa':                        'USA',
+  'u s a':                      'USA',
+  'u s':                        'USA',
+  'america':                    'USA',
+  // UK
+  'united kingdom':             'UK',
+  'great britain':              'UK',
+  'britain':                    'UK',
+  'england':                    'UK',
+  'uk':                         'UK',
+  'u k':                        'UK',
+  // UAE
+  'united arab emirates':       'UAE',
+  'uae':                        'UAE',
+  'u a e':                      'UAE',
+  // Other common abbreviations / full-name pairs
+  'south korea':                'South Korea',
+  'republic of korea':          'South Korea',
+  'korea':                      'South Korea',
+  'peoples republic of china':  'China',
+  "people's republic of china": 'China',
+  'prc':                        'China',
+  'kingdom of saudi arabia':    'Saudi Arabia',
+  'ksa':                        'Saudi Arabia',
+  'ksu':                        'Saudi Arabia',
+};
+
+function normalizeCountry(val) {
+  if (!val) return val;
+  // Strip dots, collapse spaces, lowercase for matching
+  const key = val.trim().toLowerCase().replace(/\./g, '').replace(/\s+/g, ' ');
+  return COUNTRY_MAP[key] || val.trim();
+}
+
 function parseUSD(val) {
   if (!val) return 0;
   const n = parseFloat(String(val).replace(/[^0-9.-]/g, ''));
@@ -623,9 +666,11 @@ function destroyChart(id) {
 // ═══════════════════════════════════════════════════════════════
 
 function match(rec, q) {
-  const name  = `${rec.firstName || ''} ${rec.lastName || ''}`.toLowerCase();
-  const email = (rec.email || '').toLowerCase();
-  return name.includes(q) || email.includes(q);
+  const name    = `${rec.firstName || ''} ${rec.lastName || ''}`.toLowerCase();
+  const email   = (rec.email    || '').toLowerCase();
+  const code    = (rec.code     || '').toLowerCase();
+  const project = (rec.project  || rec.client || '').toLowerCase();
+  return name.includes(q) || email.includes(q) || code.includes(q) || project.includes(q);
 }
 
 function search(query) {
@@ -889,7 +934,7 @@ function renderSearchPage() {
         <div class="search-label">Search respondents</div>
         <input
           type="text" class="search-input" id="search-input"
-          placeholder="Type a name or email address…"
+          placeholder="Search by name, email, project code or project name…"
           oninput="renderResults(this.value)"
           autocomplete="off" autofocus
         />
