@@ -169,7 +169,8 @@
     .kpi-row {
       display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px;
     }
-    @media (max-width: 900px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 1100px) { .kpi-row { grid-template-columns: repeat(3, 1fr) !important; } }
+    @media (max-width: 700px)  { .kpi-row { grid-template-columns: repeat(2, 1fr) !important; } }
     .kpi-card {
       background: #fff; border-radius: 12px; padding: 20px 22px;
       box-shadow: 0 2px 12px rgba(0,0,0,0.06); border-left: 4px solid #1e6fb0;
@@ -267,6 +268,78 @@
     }
     .dup-entry-row { margin-bottom: 3px; }
     .dup-entry-row strong { color: #0f2d4a; }
+
+    /* ── Bulk Export ── */
+    .bulk-step {
+      background: #fff; border-radius: 12px; padding: 22px 24px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.06); margin-bottom: 20px;
+    }
+    .bulk-step-num {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 26px; height: 26px; border-radius: 50%;
+      background: #0f2d4a; color: #fff; font-size: 12px; font-weight: 700;
+      margin-right: 10px; flex-shrink: 0;
+    }
+    .bulk-step-title {
+      font-size: 13px; font-weight: 700; color: #0f2d4a;
+      text-transform: uppercase; letter-spacing: 0.5px;
+      display: flex; align-items: center; margin-bottom: 14px;
+    }
+    .upload-zone {
+      border: 2px dashed #dde3ea; border-radius: 10px;
+      padding: 28px 20px; text-align: center; cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .upload-zone:hover { border-color: #1e6fb0; background: #f8fafc; }
+    .upload-zone.loaded { border-color: #00b050; background: #f0fff6; }
+    .upload-zone input[type=file] { display: none; }
+    .upload-icon { font-size: 32px; margin-bottom: 8px; }
+    .upload-label { font-size: 14px; color: #555; margin-bottom: 4px; }
+    .upload-sub   { font-size: 12px; color: #aaa; }
+    .upload-success { font-size: 14px; font-weight: 600; color: #00b050; }
+    .bulk-date-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .bulk-date-input {
+      padding: 10px 14px; font-size: 14px; border: 1.5px solid #dde3ea;
+      border-radius: 8px; outline: none; background: #f8fafc;
+      transition: border-color 0.15s;
+    }
+    .bulk-date-input:focus { border-color: #1e6fb0; background: #fff; }
+    .btn-bulk {
+      background: #0f2d4a; color: #fff; border: none;
+      padding: 10px 22px; border-radius: 8px; font-size: 14px;
+      font-weight: 600; cursor: pointer; transition: background 0.15s;
+    }
+    .btn-bulk:hover { background: #1a4870; }
+    .btn-bulk:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-dl {
+      border: none; padding: 10px 20px; border-radius: 8px;
+      font-size: 13px; font-weight: 600; cursor: pointer; margin-right: 10px;
+    }
+    .btn-dl.green { background: #00b050; color: #fff; }
+    .btn-dl.amber { background: #d97706; color: #fff; }
+    .bulk-result-box {
+      background: #f8fafc; border-radius: 9px; border: 1px solid #eaeff5;
+      padding: 16px 18px; margin-top: 14px;
+    }
+    .bulk-kpi-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 14px; }
+    .bulk-kpi {
+      background: #fff; border-radius: 10px; padding: 14px 18px;
+      border-left: 4px solid #1e6fb0; flex: 1; min-width: 120px;
+      box-shadow: 0 1px 6px rgba(0,0,0,0.05);
+    }
+    .bulk-kpi-val  { font-size: 22px; font-weight: 700; color: #0f2d4a; }
+    .bulk-kpi-lbl  { font-size: 11px; color: #888; margin-top: 4px; }
+    .bulk-preview  { overflow-x: auto; margin-top: 14px; }
+    .bulk-preview table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .bulk-preview th {
+      background: #0f2d4a; color: #fff; padding: 7px 10px;
+      text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .bulk-preview td { padding: 7px 10px; border-bottom: 1px solid #f0f4f8; color: #333; }
+    .bulk-preview tr:hover td { background: #f8fafc; }
+    .tag-mismatch { background: #fef3c7; color: #92400e; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+    .tag-ok       { background: #d1fae5; color: #065f46; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; }
+    .tag-nopid    { background: #fee2e2; color: #991b1b; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; }
 
     /* ── States ── */
     .state-msg { text-align: center; padding: 28px 16px; font-size: 14px; color: #bbb; }
@@ -562,9 +635,11 @@ function buildRecords(rawRows) {
 
 let datasets    = [];
 let loaded      = false;
-let currentView = 'search';   // 'search' | 'dashboard' | 'duplicates'
+let currentView = 'search';   // 'search' | 'dashboard' | 'duplicates' | 'bulk'
 let dupFilter   = 'all';      // 'all' | 'within' | 'cross'
 const charts    = {};         // Chart.js instances keyed by id
+let pidLookup   = null;       // email → {pid, memberId, country} from All Country Report
+let bulkResults = null;       // last generated bulk export results
 
 // ═══════════════════════════════════════════════════════════════
 // HELPERS
@@ -595,6 +670,51 @@ function excelDateToJS(val) {
   // 3. Fallback: let the browser try
   const d = new Date(s);
   return isNaN(d.getTime()) ? null : d;
+}
+
+// ── Green (sent) row detection ──────────────────────────────────
+// Dark green #00B050 = "Amount entered on Kyrios" / "Processed"
+// Light green #92D050 = "Marked complete on Kyrios (DT/EM)"
+const GREEN_COLORS = new Set(['#00B050','#92D050','#00b050','#92d050']);
+function isSent(r) { return GREEN_COLORS.has(r.rowColor || ''); }
+
+function exportSentHonorariums() {
+  const rows = [
+    ['Sheet','First Name','Last Name','Email','Designation','Country',
+     'Project Code','Project / Study Name','Date','Amount (USD)','Amount (Native Currency)','Recruiter','Comment','Status Color']
+  ];
+  datasets.forEach(ds => {
+    ds.records.filter(isSent).forEach(r => {
+      const colorLabel = (r.rowColor || '').toUpperCase() === '#00B050'
+        ? 'Dark Green – Processed'
+        : 'Light Green – Marked Complete';
+      rows.push([
+        ds.label,
+        r.firstName     || '',
+        r.lastName      || '',
+        r.email         || '',
+        r.designation   || '',
+        r.country       || '',
+        r.code          || '',
+        r.project || r.client || '',
+        r.date          ? formatEntryDate(r.date) : '',
+        r.amountUSD     || '',
+        r.amountNative  || '',
+        r.recruiter     || '',
+        r.comment       || '',
+        colorLabel
+      ].map(v => `"${String(v).replace(/"/g,'""')}"`));
+    });
+  });
+  const csv  = rows.map(r => r.join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `kyrios-sent-honorariums-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 // ── Country normalisation ────────────────────────────────────────
@@ -805,6 +925,14 @@ function getDashboardData() {
     else                  loyalty['4+']++;
   });
 
+  // Sent / processed honorariums (green rows)
+  let sentCount = 0, sentUSD = 0;
+  datasets.forEach(ds => {
+    ds.records.forEach(r => {
+      if (isSent(r)) { sentCount++; sentUSD += parseUSD(r.amountUSD); }
+    });
+  });
+
   // Unprocessed value — null rowColor = pending / yet to process
   let unprocessedUSD = 0, unprocessedCount = 0;
   datasets.forEach(ds => {
@@ -864,6 +992,7 @@ function getDashboardData() {
   return {
     sheetTotals, monthly, teamAvgMonths, avgTrend,
     loyalty, unprocessedUSD, unprocessedCount,
+    sentCount, sentUSD,
     uniqueHCPs, totalUSD, top100, top20Specialities, top20Countries
   };
 }
@@ -907,6 +1036,7 @@ function renderTabNav() {
       <button class="tab-btn ${currentView==='search'    ?'active':''}" onclick="switchView('search')">🔎  Search</button>
       <button class="tab-btn ${currentView==='dashboard' ?'active':''}" onclick="switchView('dashboard')">📊  Dashboard</button>
       <button class="tab-btn ${currentView==='duplicates'?'active':''}" onclick="switchView('duplicates')">⚠️  Duplicates</button>
+      <button class="tab-btn ${currentView==='bulk'      ?'active':''}" onclick="switchView('bulk')">🏦  Bulk Export</button>
     </nav>`;
 }
 
@@ -921,6 +1051,7 @@ function renderView() {
   if      (currentView === 'search')     renderSearchPage();
   else if (currentView === 'dashboard')  renderDashboard();
   else if (currentView === 'duplicates') renderDuplicates();
+  else if (currentView === 'bulk')       renderBulkExport();
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1042,6 +1173,7 @@ function renderDashboard() {
   const {
     sheetTotals, monthly, teamAvgMonths, avgTrend,
     loyalty, unprocessedUSD, unprocessedCount,
+    sentCount, sentUSD,
     uniqueHCPs, totalUSD, top100, top20Specialities, top20Countries
   } = getDashboardData();
   const totalEntries = sheetTotals.reduce((s, d) => s + d.count, 0);
@@ -1051,7 +1183,7 @@ function renderDashboard() {
     <div class="page">
 
       <!-- KPI Cards -->
-      <div class="kpi-row">
+      <div class="kpi-row" style="grid-template-columns:repeat(5,1fr)">
         <div class="kpi-card">
           <div class="kpi-value">${totalEntries.toLocaleString()}</div>
           <div class="kpi-label">Total Entries</div>
@@ -1063,6 +1195,12 @@ function renderDashboard() {
         <div class="kpi-card" style="border-left-color:#8b5cf6">
           <div class="kpi-value" style="color:#8b5cf6">$${Math.round(totalUSD).toLocaleString()}</div>
           <div class="kpi-label">Total USD Paid · avg $${avgPerEntry}/entry</div>
+        </div>
+        <div class="kpi-card" style="border-left-color:#00b050">
+          <div class="kpi-value" style="color:#00b050">${sentCount.toLocaleString()}</div>
+          <div class="kpi-label">✅ Sent / Processed · $${Math.round(sentUSD).toLocaleString()} USD
+            <br><button onclick="exportSentHonorariums()" style="margin-top:6px;background:#00b050;color:#fff;border:none;padding:4px 10px;border-radius:5px;font-size:10px;cursor:pointer;font-weight:600">⬇️ Export CSV</button>
+          </div>
         </div>
         <div class="kpi-card" style="border-left-color:#d97706">
           <div class="kpi-value" style="color:#d97706">$${Math.round(unprocessedUSD).toLocaleString()}</div>
@@ -1601,6 +1739,392 @@ function renderDupGroup(group, type) {
           </div>`).join('')}
       </div>
     </div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// BULK EXPORT (EM Gurgaon → Kyrios Bulk Reward CSV)
+// ═══════════════════════════════════════════════════════════════
+
+// Simple but robust CSV parser (handles quoted fields, embedded commas/newlines)
+function parseCSV(text) {
+  const rows = [];
+  let i = 0;
+  const n = text.length;
+  while (i < n) {
+    const row = [];
+    while (i < n && text[i] !== '\n') {
+      if (text[i] === '"') {
+        // quoted field
+        i++; let val = '';
+        while (i < n) {
+          if (text[i] === '"' && text[i+1] === '"') { val += '"'; i += 2; }
+          else if (text[i] === '"') { i++; break; }
+          else { val += text[i++]; }
+        }
+        row.push(val);
+        if (text[i] === ',') i++;
+      } else {
+        let val = '';
+        while (i < n && text[i] !== ',' && text[i] !== '\n') val += text[i++];
+        row.push(val.trim());
+        if (text[i] === ',') i++;
+      }
+    }
+    if (text[i] === '\n') i++;
+    if (row.length > 1 || (row.length === 1 && row[0])) rows.push(row);
+  }
+  return rows;
+}
+
+// Parse the All Country Report CSV (uploaded by user)
+// Builds: email → { pid, memberId, country }
+async function loadPIDLookup(file) {
+  const text = await file.text();
+  const rows = parseCSV(text);
+  if (!rows.length) throw new Error('CSV appears empty');
+
+  // Find header row (first row with 'email' in it)
+  let headers = null;
+  let dataStart = 0;
+  for (let i = 0; i < Math.min(5, rows.length); i++) {
+    const lower = rows[i].map(h => h.toLowerCase().trim());
+    if (lower.includes('email')) { headers = lower; dataStart = i + 1; break; }
+  }
+  if (!headers) throw new Error('Could not find a header row with an "Email" column');
+
+  const idxPID      = headers.findIndex(h => h === 'pid');
+  const idxMemberId = headers.findIndex(h => h === 'member id' || h === 'memberid');
+  const idxEmail    = headers.findIndex(h => h === 'email');
+  const idxCountry  = headers.findIndex(h => h === 'country');
+
+  if (idxEmail === -1) throw new Error('No "Email" column found in CSV');
+
+  const lookup = {};
+  for (let i = dataStart; i < rows.length; i++) {
+    const row   = rows[i];
+    const email = (row[idxEmail] || '').trim().toLowerCase();
+    if (!email || !email.includes('@')) continue;
+    lookup[email] = {
+      pid:      idxPID      >= 0 ? (row[idxPID]      || '').trim() : '',
+      memberId: idxMemberId >= 0 ? (row[idxMemberId] || '').trim() : '',
+      country:  idxCountry  >= 0 ? (row[idxCountry]  || '').trim() : '',
+    };
+  }
+  return lookup;
+}
+
+// Normalise a date value to YYYY-MM-DD string for comparison
+function dateToYMD(val) {
+  const d = val instanceof Date ? val : excelDateToJS(val);
+  if (!d || isNaN(d.getTime())) return null;
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2,'0') + '-' +
+    String(d.getDate()).padStart(2,'0');
+}
+
+// Handle file upload for PID lookup
+async function handlePIDFileUpload(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  const btn = document.getElementById('pid-upload-status');
+  if (btn) btn.innerHTML = '<span class="spinner"></span> Loading…';
+  try {
+    pidLookup = await loadPIDLookup(file);
+    const count = Object.keys(pidLookup).length;
+    const zone = document.getElementById('pid-upload-zone');
+    if (zone) {
+      zone.classList.add('loaded');
+      zone.innerHTML = `
+        <div class="upload-icon">✅</div>
+        <div class="upload-success">${count.toLocaleString()} members loaded from All Country Report</div>
+        <div class="upload-sub">${file.name}</div>`;
+    }
+    // Re-render to update button states
+    document.getElementById('bulk-generate-btn')?.removeAttribute('disabled');
+  } catch(e) {
+    const zone = document.getElementById('pid-upload-zone');
+    if (zone) zone.innerHTML = `<div class="upload-icon">❌</div><div style="color:#c33;font-size:13px">${esc(e.message)}</div>`;
+  }
+}
+
+// Core generation logic
+function generateBulkReward() {
+  const dateInput = document.getElementById('bulk-date-input');
+  if (!dateInput?.value) { alert('Please select a date first.'); return; }
+  const targetYMD = dateInput.value; // already YYYY-MM-DD from date input
+
+  // EM Gurgaon dataset
+  const emDS = datasets.find(d => d.dotClass === 'em');
+  if (!emDS) { alert('EM Gurgaon sheet not loaded yet.'); return; }
+
+  // Filter: no color (white = pending) + date matches
+  const candidates = emDS.records.filter(r => {
+    if (r.rowColor) return false; // has any colour → skip
+    if (!r.date)    return false;
+    return dateToYMD(r.date) === targetYMD;
+  });
+
+  const matched   = [];  // ready for bulk upload
+  const mismatch  = [];  // country mismatch
+  const noPID     = [];  // email not in all-country report
+  const noNative  = [];  // native amount missing
+
+  candidates.forEach(r => {
+    const email    = (r.email || '').toLowerCase().trim();
+    const pidData  = pidLookup ? pidLookup[email] : null;
+    const dateDisp = formatEntryDate(r.date);
+    const pname    = (r.project || r.client || '').trim();
+    const code     = (r.code || '').trim();
+    const message  = `${code}_${pname}_${dateDisp}`;
+    const native   = (r.amountNative || '').trim();
+    const usd      = (r.amountUSD   || '').trim();
+
+    const base = {
+      email, message, code, pname, date: dateDisp,
+      firstName: r.firstName, lastName: r.lastName,
+      country_sheet: r.country || '',
+      amountNative: native, amountUSD: usd,
+      designation: r.designation || '',
+    };
+
+    if (!pidData) {
+      noPID.push(base);
+      return;
+    }
+
+    const rec = { ...base, pid: pidData.pid, memberId: pidData.memberId, country_kyrios: pidData.country };
+
+    // Country mismatch check
+    const cs = normalizeCountry(r.country || '').toLowerCase();
+    const ck = normalizeCountry(pidData.country || '').toLowerCase();
+    if (cs && ck && cs !== ck) {
+      mismatch.push(rec);
+      return;
+    }
+
+    if (!native) { noNative.push(rec); return; }
+
+    matched.push(rec);
+  });
+
+  bulkResults = { matched, mismatch, noPID, noNative, targetYMD, total: candidates.length };
+  renderBulkResults();
+}
+
+function downloadBulkCSV() {
+  if (!bulkResults) return;
+  const rows = [['pid','amount','message']];
+  bulkResults.matched.forEach(r => {
+    rows.push([r.pid, r.amountNative, r.message].map(v => `"${String(v||'').replace(/"/g,'""')}"`));
+  });
+  const csv  = rows.map(r => r.join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `kyrios-bulk-reward-${bulkResults.targetYMD}.csv`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function downloadMismatchCSV() {
+  if (!bulkResults) return;
+  const rows = [['Name','Email','Country (EM Sheet)','Country (Kyrios)','PID','Amount (Native)','Amount (USD)','Message','Designation']];
+  [...bulkResults.mismatch, ...bulkResults.noPID, ...bulkResults.noNative].forEach(r => {
+    rows.push([
+      `${r.firstName||''} ${r.lastName||''}`.trim(),
+      r.email, r.country_sheet, r.country_kyrios||'—',
+      r.pid||'NOT FOUND', r.amountNative, r.amountUSD, r.message, r.designation
+    ].map(v => `"${String(v||'').replace(/"/g,'""')}"`));
+  });
+  const csv  = rows.map(r => r.join(',')).join('\r\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `kyrios-bulk-issues-${bulkResults.targetYMD}.csv`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+function renderBulkResults() {
+  const area = document.getElementById('bulk-results-area');
+  if (!area || !bulkResults) return;
+  const { matched, mismatch, noPID, noNative, total } = bulkResults;
+  const issues = mismatch.length + noPID.length + noNative.length;
+
+  area.innerHTML = `
+    <div class="bulk-result-box">
+      <div class="bulk-kpi-row">
+        <div class="bulk-kpi" style="border-left-color:#00b050">
+          <div class="bulk-kpi-val" style="color:#00b050">${matched.length}</div>
+          <div class="bulk-kpi-lbl">✅ Ready for Bulk Upload</div>
+        </div>
+        <div class="bulk-kpi" style="border-left-color:#d97706">
+          <div class="bulk-kpi-val" style="color:#d97706">${issues}</div>
+          <div class="bulk-kpi-lbl">⚠️ Needs attention</div>
+        </div>
+        <div class="bulk-kpi">
+          <div class="bulk-kpi-val">${total}</div>
+          <div class="bulk-kpi-lbl">White rows found on date</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+        ${matched.length > 0 ? `<button class="btn-dl green" onclick="downloadBulkCSV()">⬇️ Download Bulk Reward CSV (${matched.length} rows)</button>` : ''}
+        ${issues > 0 ? `<button class="btn-dl amber" onclick="downloadMismatchCSV()">⬇️ Download Issues CSV (${issues} rows)</button>` : ''}
+      </div>
+
+      <!-- Preview: Ready -->
+      ${matched.length > 0 ? `
+        <div style="font-size:11px;font-weight:700;color:#00b050;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">
+          ✅ Ready for upload — pid / amount / message
+        </div>
+        <div class="bulk-preview" style="max-height:280px;overflow-y:auto">
+          <table>
+            <thead><tr><th>PID</th><th>Amount (Native)</th><th>Message</th><th>Name</th><th>Country</th></tr></thead>
+            <tbody>
+              ${matched.map(r => `
+                <tr>
+                  <td style="font-family:monospace;font-size:11px">${esc(r.pid)}</td>
+                  <td><strong>${esc(r.amountNative)}</strong></td>
+                  <td style="font-family:monospace;font-size:11px;color:#555">${esc(r.message)}</td>
+                  <td>${esc((r.firstName||'')+' '+(r.lastName||''))}</td>
+                  <td>${esc(r.country_sheet)}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : ''}
+
+      <!-- Mismatch -->
+      ${mismatch.length > 0 ? `
+        <div style="font-size:11px;font-weight:700;color:#d97706;text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">
+          ⚠️ Country mismatch — verify before uploading
+        </div>
+        <div class="bulk-preview" style="max-height:200px;overflow-y:auto">
+          <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Country (EM Sheet)</th><th>Country (Kyrios)</th><th>Amount (Native)</th></tr></thead>
+            <tbody>
+              ${mismatch.map(r => `
+                <tr>
+                  <td>${esc((r.firstName||'')+' '+(r.lastName||''))}</td>
+                  <td style="color:#1e6fb0">${esc(r.email)}</td>
+                  <td><span class="tag-mismatch">${esc(r.country_sheet)}</span></td>
+                  <td><span class="tag-mismatch">${esc(r.country_kyrios)}</span></td>
+                  <td>${esc(r.amountNative)}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : ''}
+
+      <!-- No PID -->
+      ${noPID.length > 0 ? `
+        <div style="font-size:11px;font-weight:700;color:#dc2626;text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">
+          ❌ Not found in All Country Report (${noPID.length})
+        </div>
+        <div class="bulk-preview" style="max-height:180px;overflow-y:auto">
+          <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Country</th><th>Amount (USD)</th></tr></thead>
+            <tbody>
+              ${noPID.map(r => `
+                <tr>
+                  <td>${esc((r.firstName||'')+' '+(r.lastName||''))}</td>
+                  <td style="color:#dc2626">${esc(r.email)}</td>
+                  <td>${esc(r.country_sheet)}</td>
+                  <td>${esc(r.amountUSD)}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : ''}
+
+      <!-- No native amount -->
+      ${noNative.length > 0 ? `
+        <div style="font-size:11px;font-weight:700;color:#9333ea;text-transform:uppercase;letter-spacing:0.5px;margin:14px 0 8px">
+          💜 Native currency amount missing (${noNative.length})
+        </div>
+        <div class="bulk-preview" style="max-height:180px;overflow-y:auto">
+          <table>
+            <thead><tr><th>Name</th><th>Email</th><th>Country</th><th>Amount USD</th><th>Message</th></tr></thead>
+            <tbody>
+              ${noNative.map(r => `
+                <tr>
+                  <td>${esc((r.firstName||'')+' '+(r.lastName||''))}</td>
+                  <td style="color:#1e6fb0">${esc(r.email)}</td>
+                  <td>${esc(r.country_sheet)}</td>
+                  <td>${esc(r.amountUSD)}</td>
+                  <td style="font-family:monospace;font-size:11px">${esc(r.message)}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : ''}
+    </div>`;
+}
+
+function renderBulkExport() {
+  const pidReady = pidLookup !== null;
+  const cnt      = pidReady ? Object.keys(pidLookup).length : 0;
+
+  document.getElementById('root').innerHTML = `
+    <div class="page">
+
+      <div style="margin-bottom:20px">
+        <div style="font-size:20px;font-weight:700;color:#0f2d4a">🏦 Bulk Reward Export</div>
+        <div style="font-size:13px;color:#888;margin-top:4px">
+          EM Gurgaon · Picks white (pending) rows by date → generates Kyrios bulk reward CSV
+        </div>
+      </div>
+
+      <!-- Step 1: Upload All Country Report -->
+      <div class="bulk-step">
+        <div class="bulk-step-title">
+          <span class="bulk-step-num">1</span>
+          Upload All Country Report (28K member PID database)
+        </div>
+        <label style="cursor:pointer;display:block" for="pid-file-input">
+          <div class="upload-zone ${pidReady ? 'loaded' : ''}" id="pid-upload-zone">
+            ${pidReady
+              ? `<div class="upload-icon">✅</div>
+                 <div class="upload-success">${cnt.toLocaleString()} members loaded</div>
+                 <div class="upload-sub">Click to replace file</div>`
+              : `<div class="upload-icon">📂</div>
+                 <div class="upload-label">Click to upload your All Country Report (.csv)</div>
+                 <div class="upload-sub">CSV with all ~29K Kyrios members — needs PID, Email, Country columns</div>`}
+          </div>
+        </label>
+        <input type="file" id="pid-file-input" accept=".csv,text/csv"
+               onchange="handlePIDFileUpload(this)" style="display:none">
+        <span id="pid-upload-status"></span>
+      </div>
+
+      <!-- Step 2: Pick date -->
+      <div class="bulk-step">
+        <div class="bulk-step-title">
+          <span class="bulk-step-num">2</span>
+          Select date to process
+        </div>
+        <div class="bulk-date-row">
+          <input type="date" id="bulk-date-input" class="bulk-date-input"
+                 value="${new Date().toISOString().slice(0,10)}"
+                 oninput="bulkResults=null;document.getElementById('bulk-results-area').innerHTML=''"/>
+          <button class="btn-bulk" id="bulk-generate-btn"
+                  onclick="generateBulkReward()"
+                  ${!loaded ? 'disabled' : ''}>
+            Generate Bulk Reward File
+          </button>
+          ${!loaded ? '<span style="font-size:12px;color:#aaa">⏳ Waiting for sheets to load…</span>' : ''}
+          ${!pidReady ? '<span style="font-size:12px;color:#d97706">⚠️ Upload All Country Report first to get PIDs</span>' : ''}
+        </div>
+        <div style="margin-top:10px;font-size:12px;color:#888">
+          Filters EM Gurgaon for <strong>white rows</strong> (no colour = pending) on the selected date.<br>
+          Output: <code>pid, amount (native currency), message</code> where message = <code>Code_Pname_Date</code>
+        </div>
+      </div>
+
+      <!-- Results -->
+      <div id="bulk-results-area"></div>
+
+    </div>`;
+
+  // Re-render results if already generated
+  if (bulkResults) renderBulkResults();
 }
 
 // ═══════════════════════════════════════════════════════════════
