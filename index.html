@@ -341,6 +341,19 @@
     .tag-ok       { background: #d1fae5; color: #065f46; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; }
     .tag-nopid    { background: #fee2e2; color: #991b1b; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; }
 
+    /* ── Email mismatch box ── */
+    .email-mismatch-box {
+      background: #fffbeb; border: 1px solid #fde68a; border-radius: 9px;
+      padding: 14px 16px;
+    }
+    .email-mismatch-box table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .email-mismatch-box th {
+      background: #0f2d4a; color: #fff; padding: 7px 10px;
+      text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .email-mismatch-box td { padding: 8px 10px; border-bottom: 1px solid #fde68a; color: #333; vertical-align: middle; }
+    .email-mismatch-box tr:hover td { background: #fef9e7; }
+
     /* ── States ── */
     .state-msg { text-align: center; padding: 28px 16px; font-size: 14px; color: #bbb; }
     .spinner {
@@ -638,8 +651,10 @@ let loaded      = false;
 let currentView = 'search';   // 'search' | 'dashboard' | 'duplicates' | 'bulk'
 let dupFilter   = 'all';      // 'all' | 'within' | 'cross'
 const charts    = {};         // Chart.js instances keyed by id
-let pidLookup   = null;       // email → {pid, memberId, country} from All Country Report
-let bulkResults = null;       // last generated bulk export results
+let pidLookup         = null;  // email → {pid, memberId, country, firstName, lastName} from All Country Report
+let nameLookup        = null;  // "firstname lastname" → same shape, for fallback matching
+let bulkResults       = null;  // last generated bulk export results
+let pendingMismatches = [];    // email mismatches across all 3 sheets vs All Country Report
 
 // ═══════════════════════════════════════════════════════════════
 // HELPERS
@@ -1023,6 +1038,14 @@ async function loadAllSheets() {
   const statsEl = document.getElementById('data-stats');
   if (statsEl) statsEl.innerHTML =
     `<strong>${total.toLocaleString()}</strong> respondents loaded across ${datasets.length} sheets`;
+
+  // Re-run mismatch detection now that sheets are loaded (in case CSV was already uploaded)
+  if (nameLookup) {
+    pendingMismatches = detectEmailMismatches();
+    // If currently on bulk tab, refresh it to show the mismatch section
+    if (currentView === 'bulk') renderBulkExport();
+  }
+
   renderView();
 }
 
@@ -1777,7 +1800,7 @@ function parseCSV(text) {
 }
 
 // Parse the All Country Report CSV (uploaded by user)
-// Builds: email → { pid, memberId, country }
+// Builds: emailLookup (email → data) + newNameLookup ("first last" → data)
 async function loadPIDLookup(file) {
   const text = await file.text();
   const rows = parseCSV(text);
@@ -1787,30 +1810,57 @@ async function loadPIDLookup(file) {
   let headers = null;
   let dataStart = 0;
   for (let i = 0; i < Math.min(5, rows.length); i++) {
-    const lower = rows[i].map(h => h.toLowerCase().trim());
+    const lower = rows[i].map(h => h.toLowerCase().trim().replace(/\s+/g,' '));
     if (lower.includes('email')) { headers = lower; dataStart = i + 1; break; }
   }
   if (!headers) throw new Error('Could not find a header row with an "Email" column');
 
-  const idxPID      = headers.findIndex(h => h === 'pid');
-  const idxMemberId = headers.findIndex(h => h === 'member id' || h === 'memberid');
-  const idxEmail    = headers.findIndex(h => h === 'email');
-  const idxCountry  = headers.findIndex(h => h === 'country');
+  const idxPID       = headers.findIndex(h => h === 'pid');
+  const idxMemberId  = headers.findIndex(h => h === 'member id' || h === 'memberid');
+  const idxEmail     = headers.findIndex(h => h === 'email');
+  const idxCountry   = headers.findIndex(h => h === 'country');
+  const idxFirstName = headers.findIndex(h => ['first name','firstname','first_name'].includes(h));
+  const idxLastName  = headers.findIndex(h => ['last name','lastname','last_name'].includes(h));
+  const idxFullName  = headers.findIndex(h => ['full name','fullname','name'].includes(h));
 
   if (idxEmail === -1) throw new Error('No "Email" column found in CSV');
 
-  const lookup = {};
+  const emailLookup   = {};
+  const newNameLookup = {};
+
   for (let i = dataStart; i < rows.length; i++) {
     const row   = rows[i];
     const email = (row[idxEmail] || '').trim().toLowerCase();
     if (!email || !email.includes('@')) continue;
-    lookup[email] = {
+
+    let firstName = idxFirstName >= 0 ? (row[idxFirstName] || '').trim() : '';
+    let lastName  = idxLastName  >= 0 ? (row[idxLastName]  || '').trim() : '';
+    // Fallback: split full name column
+    if (!firstName && !lastName && idxFullName >= 0) {
+      const parts = (row[idxFullName] || '').trim().split(/\s+/);
+      firstName = parts[0] || '';
+      lastName  = parts.slice(1).join(' ') || '';
+    }
+
+    const data = {
       pid:      idxPID      >= 0 ? (row[idxPID]      || '').trim() : '',
       memberId: idxMemberId >= 0 ? (row[idxMemberId] || '').trim() : '',
       country:  idxCountry  >= 0 ? (row[idxCountry]  || '').trim() : '',
+      email,
+      firstName,
+      lastName,
     };
+
+    emailLookup[email] = data;
+
+    // Build name lookup for fallback matching
+    const nameKey = `${firstName} ${lastName}`.toLowerCase().trim();
+    if (nameKey && nameKey.length > 2 && !newNameLookup[nameKey]) {
+      newNameLookup[nameKey] = data;
+    }
   }
-  return lookup;
+
+  return { emailLookup, newNameLookup, count: Object.keys(emailLookup).length };
 }
 
 // Normalise a date value to YYYY-MM-DD string for comparison
@@ -1829,17 +1879,27 @@ async function handlePIDFileUpload(input) {
   const btn = document.getElementById('pid-upload-status');
   if (btn) btn.innerHTML = '<span class="spinner"></span> Loading…';
   try {
-    pidLookup = await loadPIDLookup(file);
-    const count = Object.keys(pidLookup).length;
+    const result   = await loadPIDLookup(file);
+    pidLookup      = result.emailLookup;
+    nameLookup     = result.newNameLookup;
+    const count    = result.count;
+    const nameKeys = Object.keys(nameLookup).length;
+
+    // Detect email mismatches across all 3 sheets now that we have both lookups
+    pendingMismatches = detectEmailMismatches();
+
+    // Re-render the entire Bulk Export tab (updates upload zone, mismatch section, button state)
+    renderBulkExport();
+
+    // Show counts in upload zone after re-render
     const zone = document.getElementById('pid-upload-zone');
     if (zone) {
       zone.classList.add('loaded');
       zone.innerHTML = `
         <div class="upload-icon">✅</div>
-        <div class="upload-success">${count.toLocaleString()} members loaded from All Country Report</div>
+        <div class="upload-success">${count.toLocaleString()} members loaded · ${nameKeys.toLocaleString()} name keys indexed</div>
         <div class="upload-sub">${file.name}</div>`;
     }
-    // Re-render to update button states
     document.getElementById('bulk-generate-btn')?.removeAttribute('disabled');
   } catch(e) {
     const zone = document.getElementById('pid-upload-zone');
@@ -1851,27 +1911,34 @@ async function handlePIDFileUpload(input) {
 function generateBulkReward() {
   const dateInput = document.getElementById('bulk-date-input');
   if (!dateInput?.value) { alert('Please select a date first.'); return; }
-  const targetYMD = dateInput.value; // already YYYY-MM-DD from date input
+  const targetYMD    = dateInput.value; // YYYY-MM-DD
+
+  // "As-of" date: end of selected day
+  const selectedDate = new Date(targetYMD);
+  selectedDate.setHours(23, 59, 59, 999);
 
   // EM Gurgaon dataset
   const emDS = datasets.find(d => d.dotClass === 'em');
   if (!emDS) { alert('EM Gurgaon sheet not loaded yet.'); return; }
 
-  // Filter: no color (white = pending) + date matches
+  // ── 36-day policy ─────────────────────────────────────────────
+  // White (no colour) rows where selectedDate − recordDate >= 36 days
   const candidates = emDS.records.filter(r => {
-    if (r.rowColor) return false; // has any colour → skip
-    if (!r.date)    return false;
-    return dateToYMD(r.date) === targetYMD;
+    if (r.rowColor) return false;          // coloured = already processed
+    const d = excelDateToJS(r.date);
+    if (!d) return false;
+    const diffDays = (selectedDate.getTime() - d.getTime()) / 86400000;
+    return diffDays >= 36;                 // at least 36 days old
   });
 
   const matched   = [];  // ready for bulk upload
   const mismatch  = [];  // country mismatch
-  const noPID     = [];  // email not in all-country report
-  const noNative  = [];  // native amount missing
+  const noPID     = [];  // not in All Country Report (even by name)
+  const noNative  = [];  // native amount missing (non-USA)
 
   candidates.forEach(r => {
     const email    = (r.email || '').toLowerCase().trim();
-    const pidData  = pidLookup ? pidLookup[email] : null;
+    const nameKey  = `${r.firstName || ''} ${r.lastName || ''}`.toLowerCase().trim();
     const dateDisp = formatEntryDate(r.date);
     const pname    = (r.project || r.client || '').trim();
     const code     = (r.code || '').trim();
@@ -1887,12 +1954,29 @@ function generateBulkReward() {
       designation: r.designation || '',
     };
 
+    // 1. Try exact email match
+    let pidData       = pidLookup ? pidLookup[email] : null;
+    let matchedByName = false;
+
+    // 2. Fallback: name match (handles cases where email in sheet != Kyrios email)
+    if (!pidData && nameLookup && nameKey && nameKey.length > 2) {
+      const nd = nameLookup[nameKey];
+      if (nd) { pidData = nd; matchedByName = true; }
+    }
+
     if (!pidData) {
       noPID.push(base);
       return;
     }
 
-    const rec = { ...base, pid: pidData.pid, memberId: pidData.memberId, country_kyrios: pidData.country };
+    const rec = {
+      ...base,
+      pid:            pidData.pid,
+      memberId:       pidData.memberId,
+      country_kyrios: pidData.country,
+      matchedByName,
+      kyrios_email:   matchedByName ? pidData.email : null,
+    };
 
     // Country mismatch check
     const cs = normalizeCountry(r.country || '').toLowerCase();
@@ -1902,9 +1986,12 @@ function generateBulkReward() {
       return;
     }
 
-    if (!native) { noNative.push(rec); return; }
+    // For USA: native currency = USD, so use USD amount if native is missing
+    const isUSA = cs === 'usa';
+    const effectiveAmount = native || (isUSA ? usd : '');
+    if (!effectiveAmount) { noNative.push(rec); return; }
 
-    matched.push(rec);
+    matched.push({ ...rec, amountNative: effectiveAmount });
   });
 
   bulkResults = { matched, mismatch, noPID, noNative, targetYMD, total: candidates.length };
@@ -1948,15 +2035,26 @@ function downloadMismatchCSV() {
 function renderBulkResults() {
   const area = document.getElementById('bulk-results-area');
   if (!area || !bulkResults) return;
-  const { matched, mismatch, noPID, noNative, total } = bulkResults;
-  const issues = mismatch.length + noPID.length + noNative.length;
+  const { matched, mismatch, noPID, noNative, total, targetYMD } = bulkResults;
+  const issues       = mismatch.length + noPID.length + noNative.length;
+  const byNameCount  = matched.filter(r => r.matchedByName).length;
+
+  // Cutoff date shown to user (selectedDate - 36 days)
+  const selDate    = new Date(targetYMD);
+  const cutoffDate = new Date(selDate.getTime() - 36 * 86400000);
+  const cutoffStr  = cutoffDate.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
 
   area.innerHTML = `
     <div class="bulk-result-box">
+      <div style="font-size:12px;color:#888;margin-bottom:12px">
+        📅 Showing white rows with study date on or before <strong>${cutoffStr}</strong>
+        (36-day policy · as of ${new Date(targetYMD).toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})})
+      </div>
+
       <div class="bulk-kpi-row">
         <div class="bulk-kpi" style="border-left-color:#00b050">
           <div class="bulk-kpi-val" style="color:#00b050">${matched.length}</div>
-          <div class="bulk-kpi-lbl">✅ Ready for Bulk Upload</div>
+          <div class="bulk-kpi-lbl">✅ Ready for Bulk Upload${byNameCount > 0 ? `<br><span style="font-size:10px;color:#1e6fb0">↪ ${byNameCount} matched by name</span>` : ''}</div>
         </div>
         <div class="bulk-kpi" style="border-left-color:#d97706">
           <div class="bulk-kpi-val" style="color:#d97706">${issues}</div>
@@ -1964,7 +2062,7 @@ function renderBulkResults() {
         </div>
         <div class="bulk-kpi">
           <div class="bulk-kpi-val">${total}</div>
-          <div class="bulk-kpi-lbl">White rows found on date</div>
+          <div class="bulk-kpi-lbl">White rows eligible (36+ days old)</div>
         </div>
       </div>
 
@@ -1980,7 +2078,7 @@ function renderBulkResults() {
         </div>
         <div class="bulk-preview" style="max-height:280px;overflow-y:auto">
           <table>
-            <thead><tr><th>PID</th><th>Amount (Native)</th><th>Message</th><th>Name</th><th>Country</th></tr></thead>
+            <thead><tr><th>PID</th><th>Amount (Native)</th><th>Message</th><th>Name</th><th>Country</th><th>Match</th></tr></thead>
             <tbody>
               ${matched.map(r => `
                 <tr>
@@ -1989,6 +2087,7 @@ function renderBulkResults() {
                   <td style="font-family:monospace;font-size:11px;color:#555">${esc(r.message)}</td>
                   <td>${esc((r.firstName||'')+' '+(r.lastName||''))}</td>
                   <td>${esc(r.country_sheet)}</td>
+                  <td style="font-size:10px;color:${r.matchedByName?'#1e6fb0':'#888'}">${r.matchedByName?'📛 name':'✉️ email'}</td>
                 </tr>`).join('')}
             </tbody>
           </table>
@@ -2058,9 +2157,170 @@ function renderBulkResults() {
     </div>`;
 }
 
+// ── Email mismatch detection ─────────────────────────────────────
+// Scans ALL 3 sheets vs All Country Report by name; flags email differences
+
+function detectEmailMismatches() {
+  if (!nameLookup || !datasets.length) return [];
+  const mismatches = [];
+  datasets.forEach((ds, dsIdx) => {
+    ds.records.forEach((r, recIdx) => {
+      const email   = (r.email || '').toLowerCase().trim();
+      const nameKey = `${r.firstName || ''} ${r.lastName || ''}`.toLowerCase().trim();
+      if (!nameKey || nameKey.length < 3) return;
+      const kyrios = nameLookup[nameKey];
+      if (!kyrios) return;
+      const kEmail = (kyrios.email || '').toLowerCase().trim();
+      if (!kEmail || kEmail === email) return;
+      mismatches.push({
+        dsIdx, recIdx,
+        dsLabel:     ds.label,
+        dsDotClass:  ds.dotClass,
+        name:        `${r.firstName || ''} ${r.lastName || ''}`.trim(),
+        sheet_email: email,
+        kyrios_email: kEmail,
+        pid:         kyrios.pid,
+        status:      'pending',   // 'pending' | 'approved' | 'kept'
+      });
+    });
+  });
+  return mismatches;
+}
+
+function approveMismatch(idx) {
+  const m = pendingMismatches[idx];
+  if (!m || m.status !== 'pending') return;
+  datasets[m.dsIdx].records[m.recIdx].email = m.kyrios_email;
+  m.status = 'approved';
+  renderMismatchReview();
+}
+
+function keepMismatch(idx) {
+  const m = pendingMismatches[idx];
+  if (!m || m.status !== 'pending') return;
+  m.status = 'kept';
+  renderMismatchReview();
+}
+
+function approveAllMismatches() {
+  pendingMismatches.forEach((m, idx) => {
+    if (m.status === 'pending') {
+      datasets[m.dsIdx].records[m.recIdx].email = m.kyrios_email;
+      m.status = 'approved';
+    }
+  });
+  renderMismatchReview();
+}
+
+function dismissAllMismatches() {
+  pendingMismatches.forEach(m => { if (m.status === 'pending') m.status = 'kept'; });
+  renderMismatchReview();
+}
+
+function renderMismatchReview() {
+  const area = document.getElementById('email-mismatch-area');
+  if (!area) return;
+
+  const pending  = pendingMismatches.filter(m => m.status === 'pending');
+  const approved = pendingMismatches.filter(m => m.status === 'approved');
+  const kept     = pendingMismatches.filter(m => m.status === 'kept');
+  const total    = pendingMismatches.length;
+
+  if (total === 0) {
+    area.innerHTML = `
+      <div style="color:#16a34a;font-size:13px;padding:12px 0;display:flex;align-items:center;gap:6px">
+        ✅ No email mismatches found — all emails match between your sheets and All Country Report.
+      </div>`;
+    return;
+  }
+
+  area.innerHTML = `
+    <div class="email-mismatch-box">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px">
+        <div>
+          <div style="font-size:14px;font-weight:700;color:#b45309">
+            ⚠️ ${total} email mismatch${total !== 1 ? 'es' : ''} across all 3 sheets
+          </div>
+          <div style="font-size:12px;color:#888;margin-top:3px">
+            ${approved.length > 0 ? `<span style="color:#16a34a">${approved.length} approved ·</span> ` : ''}
+            ${kept.length     > 0 ? `<span style="color:#888">${kept.length} kept as-is ·</span> ` : ''}
+            <strong>${pending.length} pending</strong>
+          </div>
+        </div>
+        ${pending.length > 0 ? `
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button onclick="approveAllMismatches()" style="
+              background:#16a34a;color:#fff;border:none;padding:6px 14px;
+              border-radius:7px;font-size:12px;font-weight:600;cursor:pointer">
+              ✅ Approve All (${pending.length})
+            </button>
+            <button onclick="dismissAllMismatches()" style="
+              background:#f3f4f6;color:#555;border:1px solid #ddd;padding:6px 14px;
+              border-radius:7px;font-size:12px;font-weight:600;cursor:pointer">
+              Keep All as is
+            </button>
+          </div>` : `
+          <span style="font-size:12px;color:#16a34a;font-weight:600">All resolved ✅</span>`}
+      </div>
+      <div style="overflow-x:auto;max-height:360px;overflow-y:auto">
+        <table class="top10-table">
+          <thead style="position:sticky;top:0;background:#fff;z-index:1">
+            <tr>
+              <th>Name</th>
+              <th>Sheet</th>
+              <th>Email in Sheet ❌</th>
+              <th>Email in Kyrios ✅</th>
+              <th>PID</th>
+              <th style="width:200px">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${pendingMismatches.map((m, i) => `
+              <tr style="${m.status !== 'pending' ? 'opacity:0.55' : ''}">
+                <td><strong>${esc(m.name)}</strong></td>
+                <td style="white-space:nowrap">
+                  <span class="sheet-dot ${esc(m.dsDotClass)}" style="display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:4px;vertical-align:middle"></span>
+                  ${esc(m.dsLabel)}
+                </td>
+                <td style="color:#dc2626;font-size:12px;word-break:break-all">${esc(m.sheet_email)}</td>
+                <td style="color:#1e6fb0;font-size:12px;word-break:break-all">${esc(m.kyrios_email)}</td>
+                <td style="font-family:monospace;font-size:11px;color:#555">${esc(m.pid || '—')}</td>
+                <td>
+                  ${m.status === 'approved'
+                    ? '<span style="color:#16a34a;font-size:12px;font-weight:600">✅ Email updated</span>'
+                    : m.status === 'kept'
+                    ? '<span style="color:#888;font-size:12px">⛔ Kept original</span>'
+                    : `<div style="display:flex;gap:5px;align-items:center;flex-wrap:wrap">
+                         <button onclick="approveMismatch(${i})" style="
+                           background:#16a34a;color:#fff;border:none;padding:4px 10px;
+                           border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">
+                           ✅ Use Kyrios email
+                         </button>
+                         <button onclick="keepMismatch(${i})" style="
+                           background:#f3f4f6;color:#555;border:1px solid #ddd;padding:4px 10px;
+                           border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;white-space:nowrap">
+                           Keep as is
+                         </button>
+                       </div>`}
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+      ${approved.length > 0 ? `
+        <div style="margin-top:10px;font-size:12px;color:#555;background:#f0fdf4;padding:8px 12px;border-radius:6px;border-left:3px solid #16a34a">
+          💡 <strong>${approved.length} email${approved.length!==1?'s':''} updated in memory</strong> — these changes apply for this session only.
+          To make them permanent, update the honorarium sheets directly in SharePoint.
+        </div>` : ''}
+    </div>`;
+}
+
 function renderBulkExport() {
   const pidReady = pidLookup !== null;
   const cnt      = pidReady ? Object.keys(pidLookup).length : 0;
+
+  const mismatchCount   = pendingMismatches.length;
+  const mismatchPending = pendingMismatches.filter(m => m.status === 'pending').length;
 
   document.getElementById('root').innerHTML = `
     <div class="page">
@@ -2068,7 +2328,7 @@ function renderBulkExport() {
       <div style="margin-bottom:20px">
         <div style="font-size:20px;font-weight:700;color:#0f2d4a">🏦 Bulk Reward Export</div>
         <div style="font-size:13px;color:#888;margin-top:4px">
-          EM Gurgaon · Picks white (pending) rows by date → generates Kyrios bulk reward CSV
+          EM Gurgaon · White rows eligible after 36-day policy → Kyrios bulk reward CSV
         </div>
       </div>
 
@@ -2076,7 +2336,7 @@ function renderBulkExport() {
       <div class="bulk-step">
         <div class="bulk-step-title">
           <span class="bulk-step-num">1</span>
-          Upload All Country Report (28K member PID database)
+          Upload All Country Report (29K member PID database)
         </div>
         <label style="cursor:pointer;display:block" for="pid-file-input">
           <div class="upload-zone ${pidReady ? 'loaded' : ''}" id="pid-upload-zone">
@@ -2086,7 +2346,7 @@ function renderBulkExport() {
                  <div class="upload-sub">Click to replace file</div>`
               : `<div class="upload-icon">📂</div>
                  <div class="upload-label">Click to upload your All Country Report (.csv)</div>
-                 <div class="upload-sub">CSV with all ~29K Kyrios members — needs PID, Email, Country columns</div>`}
+                 <div class="upload-sub">CSV with all ~29K Kyrios members — needs PID, Email, First Name, Last Name, Country columns</div>`}
           </div>
         </label>
         <input type="file" id="pid-file-input" accept=".csv,text/csv"
@@ -2094,11 +2354,32 @@ function renderBulkExport() {
         <span id="pid-upload-status"></span>
       </div>
 
-      <!-- Step 2: Pick date -->
+      <!-- Step 2: Email Verification (visible only after CSV loaded) -->
+      ${pidReady ? `
+      <div class="bulk-step">
+        <div class="bulk-step-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div>
+            <span class="bulk-step-num">2</span>
+            Email Verification — all 3 sheets vs Kyrios
+          </div>
+          ${mismatchPending > 0
+            ? `<span style="font-size:12px;color:#b45309;font-weight:600">⚠️ ${mismatchPending} unresolved</span>`
+            : mismatchCount > 0
+            ? `<span style="font-size:12px;color:#16a34a;font-weight:600">✅ All resolved</span>`
+            : `<span style="font-size:12px;color:#16a34a">✅ No mismatches</span>`}
+        </div>
+        <div style="font-size:12px;color:#888;margin-bottom:10px">
+          Matches panelist names across all 3 honorarium sheets against the All Country Report.
+          Where the same person has a different email, you can approve updating it to the Kyrios-registered email.
+        </div>
+        <div id="email-mismatch-area"></div>
+      </div>` : ''}
+
+      <!-- Step 3: Pick date and generate -->
       <div class="bulk-step">
         <div class="bulk-step-title">
-          <span class="bulk-step-num">2</span>
-          Select date to process
+          <span class="bulk-step-num">${pidReady ? '3' : '2'}</span>
+          Select "as of" date → generate bulk reward file
         </div>
         <div class="bulk-date-row">
           <input type="date" id="bulk-date-input" class="bulk-date-input"
@@ -2112,8 +2393,10 @@ function renderBulkExport() {
           ${!loaded ? '<span style="font-size:12px;color:#aaa">⏳ Waiting for sheets to load…</span>' : ''}
           ${!pidReady ? '<span style="font-size:12px;color:#d97706">⚠️ Upload All Country Report first to get PIDs</span>' : ''}
         </div>
-        <div style="margin-top:10px;font-size:12px;color:#888">
-          Filters EM Gurgaon for <strong>white rows</strong> (no colour = pending) on the selected date.<br>
+        <div style="margin-top:10px;font-size:12px;color:#888;line-height:1.7">
+          <strong>36-day policy:</strong> Selects white (pending) rows from EM Gurgaon where the study DATE
+          is at least 36 days before the date you pick.<br>
+          E.g. selecting <em>21-Jul-2026</em> pulls rows with date ≤ <em>15-Jun-2026</em>.<br>
           Output: <code>pid, amount (native currency), message</code> where message = <code>Code_Pname_Date</code>
         </div>
       </div>
@@ -2123,7 +2406,8 @@ function renderBulkExport() {
 
     </div>`;
 
-  // Re-render results if already generated
+  // Re-render sub-sections
+  if (pidReady) renderMismatchReview();
   if (bulkResults) renderBulkResults();
 }
 
